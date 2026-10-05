@@ -2,7 +2,7 @@ export interface User {
   id: string;
   name: string;
   username: string;
-  role: 'admin' | 'attendant';
+  role: "admin" | "attendant";
   active?: number;
   created_at?: string;
 }
@@ -36,7 +36,7 @@ export interface Product {
   promo_price_cents?: number | null;
   images: string[];
   is_showcase: number;
-  status: 'active' | 'archived';
+  status: "active" | "archived";
   variations: Variation[];
   total_stock?: number;
   has_low_stock?: boolean;
@@ -75,7 +75,7 @@ export interface CartItem {
 }
 
 export interface PaymentItem {
-  method: 'money' | 'pix' | 'debit' | 'credit';
+  method: "money" | "pix" | "debit" | "credit";
   amount_cents: number;
 }
 
@@ -92,12 +92,13 @@ export interface SaleItem {
   quantity: number;
   total_cents: number;
   returned_quantity: number;
+  net_total_cents: number;
 }
 
 export interface SalePayment {
   id: string;
   sale_id: string;
-  payment_method: 'money' | 'pix' | 'debit' | 'credit';
+  payment_method: "money" | "pix" | "debit" | "credit";
   amount_cents: number;
 }
 
@@ -113,7 +114,8 @@ export interface Sale {
   discount_cents: number;
   total_cents: number;
   change_cents: number;
-  status: 'completed' | 'cancelled' | 'returned_partial' | 'returned_full';
+  exchange_credit_cents?: number;
+  status: "completed" | "cancelled" | "returned_partial" | "returned_full";
   cancellation_reason?: string | null;
   cancelled_by?: string | null;
   cancelled_at?: string | null;
@@ -136,13 +138,13 @@ export interface CashRegister {
   expected_cash_cents?: number | null;
   difference_cents?: number | null;
   notes?: string | null;
-  status: 'open' | 'closed';
+  status: "open" | "closed";
 }
 
 export interface CashMovement {
   id: string;
   register_id: string;
-  type: 'bleed' | 'supply';
+  type: "bleed" | "supply";
   amount_cents: number;
   reason: string;
   user_id: string;

@@ -1,132 +1,132 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
-const { get, query, run } = require('../db');
-const { authenticate, requireRole, logAudit, JWT_SECRET } = require('../middleware/auth');
-
-// Login
-router.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Informe usuário e senha.' });
-  }
-
-  const user = get('SELECT * FROM users WHERE username = ?', [username.trim().toLowerCase()]);
-  if (!user) {
-    return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
-  }
-
-  if (user.active !== 1) {
-    return res.status(403).json({ error: 'Usuário desativado. Contate o administrador.' });
-  }
-
-  const match = bcrypt.compareSync(password, user.password_hash);
-  if (!match) {
-    return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
-  }
-
-  const token = jwt.sign(
-    { id: user.id, username: user.username, role: user.role },
-    JWT_SECRET,
-    { expiresIn: '12h' }
-  );
-
-  logAudit(user.id, 'LOGIN', 'user', user.id, { ip: req.ip });
-
-  return res.json({
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      role: user.role
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { randomUUID } = require("node:crypto");
+const { get, query, run, transaction } = require("../db");
+const {
+  authenticate,
+  requireRole,
+  logAudit,
+  JWT_SECRET,
+} = require("../middleware/auth");
+const { text } = require("../validation");
+const attempts = new Map();
+router.post("/login", (req, res) => {
+  const ip = req.ip;
+  const now = Date.now();
+  for (const [key, value] of attempts)
+    if (value.until < now) attempts.delete(key);
+  const rate = attempts.get(ip) || { count: 0, until: now + 15 * 60 * 1000 };
+  if (rate.count >= 10)
+    return res
+      .status(429)
+      .json({ error: "Muitas tentativas. Tente novamente em 15 minutos." });
+  try {
+    const username = text(req.body.username, "Usuário", 80).toLowerCase();
+    const password = text(req.body.password, "Senha", 200);
+    const user = get("SELECT * FROM users WHERE username=?", [username]);
+    if (
+      !user ||
+      !user.active ||
+      !bcrypt.compareSync(password, user.password_hash)
+    ) {
+      rate.count++;
+      attempts.set(ip, rate);
+      return res.status(401).json({ error: "Usuário ou senha incorretos." });
     }
-  });
+    attempts.delete(ip);
+    const token = jwt.sign(
+      { id: user.id, version: user.token_version },
+      JWT_SECRET,
+      { expiresIn: "12h" },
+    );
+    logAudit(user.id, "LOGIN", "user", user.id, { ip });
+    const { password_hash, ...safe } = user;
+    return res.json({ token, user: safe });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 });
-
-// Current user profile
-router.get('/me', authenticate, (req, res) => {
-  return res.json({ user: req.user });
+router.get("/me", authenticate, (req, res) => res.json({ user: req.user }));
+router.get("/users", authenticate, requireRole("admin"), (req, res) =>
+  res.json(
+    query(
+      "SELECT id,name,username,role,active,created_at FROM users ORDER BY created_at DESC",
+    ),
+  ),
+);
+router.post("/users", authenticate, requireRole("admin"), (req, res) => {
+  try {
+    const name = text(req.body.name, "Nome", 100),
+      username = text(req.body.username, "Usuário", 80).toLowerCase(),
+      password = text(req.body.password, "Senha", 200);
+    if (password.length < 12)
+      throw new Error("A senha deve ter ao menos 12 caracteres.");
+    const role = req.body.role;
+    if (!["admin", "attendant"].includes(role))
+      throw new Error("Perfil inválido.");
+    if (get("SELECT id FROM users WHERE username=?", [username]))
+      return res.status(409).json({ error: "Usuário já existe." });
+    const id = randomUUID();
+    run(
+      "INSERT INTO users(id,name,username,password_hash,role,active,created_at) VALUES (?,?,?,?,?,1,?)",
+      [
+        id,
+        name,
+        username,
+        bcrypt.hashSync(password, 12),
+        role,
+        new Date().toISOString(),
+      ],
+    );
+    logAudit(req.user.id, "CREATE_USER", "user", id, { name, username, role });
+    return res
+      .status(201)
+      .json({ user: { id, name, username, role, active: 1 } });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 });
-
-// Admin: list users
-router.get('/users', authenticate, requireRole('admin'), (req, res) => {
-  const users = query('SELECT id, name, username, role, active, created_at FROM users ORDER BY created_at DESC');
-  return res.json(users);
+router.put("/users/:id", authenticate, requireRole("admin"), (req, res) => {
+  try {
+    const user = get("SELECT * FROM users WHERE id=?", [req.params.id]);
+    if (!user)
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    const role = req.body.role ?? user.role,
+      active = req.body.active ?? user.active;
+    if (!["admin", "attendant"].includes(role) || ![0, 1].includes(active))
+      throw new Error("Perfil ou status inválido.");
+    if (user.id === req.user.id && (!active || role !== "admin"))
+      throw new Error(
+        "Não é possível remover seu próprio acesso de administrador.",
+      );
+    const password = req.body.password;
+    if (
+      password !== undefined &&
+      (typeof password !== "string" || password.length < 12)
+    )
+      throw new Error("A senha deve ter ao menos 12 caracteres.");
+    transaction(() =>
+      run(
+        "UPDATE users SET name=?,role=?,active=?,password_hash=?,token_version=token_version+1 WHERE id=?",
+        [
+          req.body.name ? text(req.body.name, "Nome", 100) : user.name,
+          role,
+          active,
+          password ? bcrypt.hashSync(password, 12) : user.password_hash,
+          user.id,
+        ],
+      ),
+    );
+    logAudit(req.user.id, "UPDATE_USER", "user", user.id, { role, active });
+    return res.json(
+      get("SELECT id,name,username,role,active FROM users WHERE id=?", [
+        user.id,
+      ]),
+    );
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 });
-
-// Admin: create user
-router.post('/users', authenticate, requireRole('admin'), (req, res) => {
-  const { name, username, password, role } = req.body;
-  if (!name || !username || !password || !role) {
-    return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
-  }
-
-  if (!['admin', 'attendant'].includes(role)) {
-    return res.status(400).json({ error: 'Perfil inválido.' });
-  }
-
-  const cleanUsername = username.trim().toLowerCase();
-  const existing = get('SELECT id FROM users WHERE username = ?', [cleanUsername]);
-  if (existing) {
-    return res.status(409).json({ error: 'Nome de usuário já está em uso.' });
-  }
-
-  const id = uuidv4();
-  const passwordHash = bcrypt.hashSync(password, 10);
-  const now = new Date().toISOString();
-
-  run(
-    'INSERT INTO users (id, name, username, password_hash, role, active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)',
-    [id, name.trim(), cleanUsername, passwordHash, role, now]
-  );
-
-  logAudit(req.user.id, 'CREATE_USER', 'user', id, { name, username: cleanUsername, role });
-
-  return res.status(201).json({
-    message: 'Usuário criado com sucesso.',
-    user: { id, name, username: cleanUsername, role, active: 1, created_at: now }
-  });
-});
-
-// Admin: toggle active status or update password
-router.put('/users/:id', authenticate, requireRole('admin'), (req, res) => {
-  const { id } = req.params;
-  const { name, active, password, role } = req.body;
-
-  const targetUser = get('SELECT id, username FROM users WHERE id = ?', [id]);
-  if (!targetUser) {
-    return res.status(404).json({ error: 'Usuário não encontrado.' });
-  }
-
-  // Prevent admin from deactivating oneself
-  if (req.user.id === id && active === 0) {
-    return res.status(400).json({ error: 'Você não pode desativar seu próprio usuário.' });
-  }
-
-  if (password && password.trim()) {
-    const hash = bcrypt.hashSync(password.trim(), 10);
-    run('UPDATE users SET password_hash = ? WHERE id = ?', [hash, id]);
-  }
-
-  if (active !== undefined) {
-    run('UPDATE users SET active = ? WHERE id = ?', [active ? 1 : 0, id]);
-  }
-
-  if (name && name.trim()) {
-    run('UPDATE users SET name = ? WHERE id = ?', [name.trim(), id]);
-  }
-
-  if (role && ['admin', 'attendant'].includes(role)) {
-    run('UPDATE users SET role = ? WHERE id = ?', [role, id]);
-  }
-
-  logAudit(req.user.id, 'UPDATE_USER', 'user', id, { active, role, name });
-
-  const updated = get('SELECT id, name, username, role, active, created_at FROM users WHERE id = ?', [id]);
-  return res.json(updated);
-});
-
 module.exports = router;

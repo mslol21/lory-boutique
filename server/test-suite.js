@@ -1,274 +1,398 @@
-const http = require('http');
-const { startServer } = require('./index');
-
-async function runTestSuite() {
-  console.log('--- INICIANDO TESTES AUTOMATIZADOS DO BACKEND ---');
-
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const crypto = require("node:crypto");
+const { spawnSync } = require("node:child_process");
+// Always isolate test data, including administrator credentials, from store records.
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lory-tests-"));
+process.env.DB_PATH = path.join(dir, "test.db");
+process.env.JWT_SECRET = crypto.randomBytes(48).toString("hex");
+process.env.ADMIN_PASSWORD = crypto.randomBytes(24).toString("hex");
+process.env.ADMIN_USERNAME = "test-admin";
+process.env.PORT = "0";
+const { startServer } = require("./index");
+const { get, query, run, closeDB } = require("./db");
+const { seedDatabase } = require("./seed");
+(async () => {
   const server = await startServer();
-  const baseUrl = 'http://localhost:3001';
-
-  function request(method, path, body = null, token = null) {
-    return new Promise((resolve, reject) => {
-      const url = new URL(path, baseUrl);
-      const options = {
-        method,
-        hostname: url.hostname,
-        port: url.port,
-        path: url.pathname + url.search,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      };
-      if (token) {
-        options.headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const req = http.request(options, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          let parsed;
-          try {
-            parsed = JSON.parse(data);
-          } catch (e) {
-            parsed = data;
-          }
-          resolve({ status: res.statusCode, data: parsed });
-        });
-      });
-
-      req.on('error', reject);
-      if (body) {
-        req.write(JSON.stringify(body));
-      }
-      req.end();
+  const base = `http://127.0.0.1:${server.address().port}/api`;
+  let token;
+  let passed = 0;
+  async function req(
+    route,
+    body,
+    auth = token,
+    method = body ? "POST" : "GET",
+  ) {
+    const r = await fetch(base + route, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(auth ? { Authorization: "Bearer " + auth } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
     });
+    const type = r.headers.get("content-type");
+    return {
+      status: r.status,
+      data: type?.includes("json") ? await r.json() : await r.text(),
+    };
   }
-
-  let adminToken = '';
-  let attendantToken = '';
-
+  const test = (name, fn) => {
+    fn();
+    passed++;
+    console.log("✓", name);
+  };
   try {
-    // TEST 1: Login Admin
-    console.log('\n[Teste 1] Login Admin');
-    const loginAdmin = await request('POST', '/api/auth/login', { username: 'admin', password: 'admin123' });
-    if (loginAdmin.status !== 200 || !loginAdmin.data.token) throw new Error('Falha no login do admin');
-    adminToken = loginAdmin.data.token;
-    console.log('✓ Admin autenticado com sucesso');
-
-    // TEST 2: Login Atendente
-    console.log('\n[Teste 2] Login Atendente & Restrições de Perfil');
-    const loginAttendant = await request('POST', '/api/auth/login', { username: 'atendente', password: 'atendente123' });
-    if (loginAttendant.status !== 200 || !loginAttendant.data.token) throw new Error('Falha no login do atendente');
-    attendantToken = loginAttendant.data.token;
-    console.log('✓ Atendente autenticado com sucesso');
-
-    // Verify Attendant CANNOT see cost prices
-    const attendantProducts = await request('GET', '/api/products', null, attendantToken);
-    const hasCostPrice = attendantProducts.data.some(p => p.cost_price_cents !== undefined);
-    if (hasCostPrice) throw new Error('VIOLAÇÃO DE SEGURANÇA: Atendente conseguiu visualizar custo de produto!');
-    console.log('✓ Segurança: Preços de custo devidamente ocultados para atendente');
-
-    // Verify Attendant CANNOT create user
-    const attendantCreateUser = await request('POST', '/api/auth/users', { name: 'X', username: 'x', password: '123', role: 'attendant' }, attendantToken);
-    if (attendantCreateUser.status !== 403) throw new Error('VIOLAÇÃO: Atendente conseguiu criar usuário!');
-    console.log('✓ Segurança: Atendente bloqueado de funções administrativas (403)');
-
-    // TEST 3: Vitrine Pública sem dados sensíveis e com campos em branco ocultos
-    console.log('\n[Teste 3] Vitrine Pública');
-    const publicSettings = await request('GET', '/api/public/settings');
-    if (publicSettings.data.store_name !== 'Lory Boutique') throw new Error('Configurações públicas incorretas');
-    if (publicSettings.data.cnpj !== '') throw new Error('CNPJ fictício detectado!');
-    const publicProducts = await request('GET', '/api/public/products');
-    if (!Array.isArray(publicProducts.data) || publicProducts.data.length === 0) throw new Error('Vitrine vazia');
-    const publicHasCost = publicProducts.data.some(p => p.cost_price_cents !== undefined);
-    if (publicHasCost) throw new Error('VIOLAÇÃO: Vitrine pública expôs preço de custo!');
-    console.log(`✓ Vitrine pública retornou ${publicProducts.data.length} peças ativas sem dados confidenciais`);
-
-    // TEST 4: Abertura de Caixa
-    console.log('\n[Teste 4] Abertura de Caixa');
-    const existingCash = await request('GET', '/api/cash/current', null, attendantToken);
-    if (existingCash.data.open && existingCash.data.register) {
-      await request('POST', '/api/cash/close', {
-        register_id: existingCash.data.register.id,
-        counted_cash_cents: existingCash.data.summary.expected_physical_cash_cents,
-        notes: 'Fechamento pré-teste'
-      }, attendantToken);
-    }
-
-    const openRes = await request('POST', '/api/cash/open', { initial_amount_cents: 10000 }, attendantToken); // R$ 100,00
-    if (openRes.status !== 201) throw new Error('Falha ao abrir caixa: ' + JSON.stringify(openRes.data));
-    console.log('✓ Caixa aberto com R$ 100,00 em dinheiro');
-
-    // TEST 5: Cadastro de Novo Produto com Variações
-    console.log('\n[Teste 5] Cadastro de Produto com Tamanhos e Cores');
-    const runId = Date.now();
-    const testRef = `CHM-${runId.toString().slice(-4)}`;
-    const catsRes = await request('GET', '/api/products/categories', null, adminToken);
-    const catId = catsRes.data[0].id;
-
-    const newProdRes = await request('POST', '/api/products', {
-      name: `Vestido Chemise Floral Botões ${runId.toString().slice(-4)}`,
-      description: 'Chemise feminina com estampa floral suave e faixa para amarração na cintura.',
-      category_id: catId,
-      reference: testRef,
-      cost_price_cents: 5000,
-      sale_price_cents: 12000,
-      promo_price_cents: 11000,
-      images: ['https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800'],
-      is_showcase: 1,
-      variations: [
-        { size: 'P', color: 'Rosa Bebê', sku: `CHM-P-${runId}`, stock: 5, min_stock: 1 },
-        { size: 'M', color: 'Rosa Bebê', sku: `CHM-M-${runId}`, stock: 2, min_stock: 1 },
-        { size: 'G', color: 'Verde Oliva', sku: `CHM-G-${runId}`, stock: 1, min_stock: 1 }
-      ]
-    }, adminToken);
-
-    if (newProdRes.status !== 201) throw new Error('Falha ao cadastrar produto: ' + JSON.stringify(newProdRes.data));
-    console.log('✓ Produto com 3 variações cadastrado com sucesso');
-
-    // TEST 6: Venda com Pagamento Dividido e Troco
-    console.log('\n[Teste 6] PDV: Venda com Pagamento Dividido e Troco');
-    // Search product to get variation IDs
-    const searchRes = await request('GET', `/api/sales/pos/search?q=${testRef}`, null, attendantToken);
-    const prod = searchRes.data[0];
-    const varP = prod.variations.find(v => v.size === 'P'); // 5 units, price 110.00
-    const varM = prod.variations.find(v => v.size === 'M'); // 2 units, price 110.00
-
-    // Item 1: 1 unit of P (110.00). Total = 110.00. Paid: 50.00 Pix + 100.00 Money. Total Paid = 150.00. Change = 40.00 Money.
-    const saleRes = await request('POST', '/api/sales/checkout', {
-      items: [
-        { variation_id: varP.id, quantity: 1 }
-      ],
-      payments: [
-        { method: 'pix', amount_cents: 5000 },
-        { method: 'money', amount_cents: 10000 }
-      ],
+    test("Instalação sem produtos, vendas ou caixa", () => {
+      for (const table of [
+        "products",
+        "product_variations",
+        "sales",
+        "cash_registers",
+      ])
+        assert.equal(get(`SELECT COUNT(*) AS n FROM ${table}`).n, 0);
+    });
+    test("Chaves estrangeiras ativas", () =>
+      assert.equal(get("PRAGMA foreign_keys").foreign_keys, 1));
+    const login = await req(
+      "/auth/login",
+      { username: "test-admin", password: process.env.ADMIN_PASSWORD },
+      null,
+    );
+    assert.equal(login.status, 200);
+    token = login.data.token;
+    test("Acesso padrão removido", () =>
+      assert.equal(
+        get(
+          "SELECT COUNT(*) AS n FROM users WHERE username IN ('admin','atendente')",
+        ).n,
+        0,
+      ));
+    const pub = await req("/public/products");
+    test("Vitrine começa vazia", () => assert.deepEqual(pub.data, []));
+    await req("/cash/open", { initial_amount_cents: 0 });
+    const newProduct = async (stock = 10, price = 10000) => {
+      const r = await req("/products", {
+        name: "Peça de teste",
+        description: "",
+        sale_price_cents: price,
+        cost_price_cents: 5000,
+        images: [],
+        is_showcase: 1,
+        variations: [{ size: "M", color: "Preto", stock, min_stock: 0 }],
+      });
+      assert.equal(r.status, 201, JSON.stringify(r.data));
+      return (await req("/products/" + r.data.id)).data;
+    };
+    const p = await newProduct();
+    const id = p.variations[0].id;
+    test("Estoque mínimo zero preservado", () =>
+      assert.equal(p.variations[0].min_stock, 0));
+    const checkout = (variation, qty = 1, extra = {}) => ({
+      items: [{ variation_id: variation, quantity: qty }],
+      payments: [{ method: "money", amount_cents: 10000 * qty }],
+      idempotency_key: crypto.randomUUID(),
+      ...extra,
+    });
+    const payload = checkout(id, 1, {
+      discount_cents: 2000,
+      payments: [{ method: "money", amount_cents: 8000 }],
+    });
+    const sale = await req("/sales/checkout", payload);
+    assert.equal(sale.status, 201, JSON.stringify(sale.data));
+    const sold = (await req("/sales/" + sale.data.sale.saleId)).data;
+    const dup = await req("/sales/checkout", payload);
+    test("Retentativa usa a mesma venda", () => {
+      assert.equal(dup.status, 200);
+      assert.equal(dup.data.sale.saleId, sold.id);
+    });
+    test("Recuperação por chave", () =>
+      assert.equal(
+        get("SELECT id FROM sales WHERE idempotency_key=?", [
+          payload.idempotency_key,
+        ]).id,
+        sold.id,
+      ));
+    const altered = await req("/sales/checkout", {
+      ...payload,
       discount_cents: 0,
-      customer_name: 'Maria Silva',
-      customer_phone: '11999998888',
-      idempotency_key: `test-key-sale-${runId}`
-    }, attendantToken);
-
-    if (saleRes.status !== 201) throw new Error('Falha no checkout: ' + JSON.stringify(saleRes.data));
-    if (saleRes.data.sale.change_cents !== 4000) throw new Error('Cálculo de troco incorreto! Esperado 4000, recebido: ' + saleRes.data.sale.change_cents);
-    console.log(`✓ Venda concluída (${saleRes.data.sale.saleCode}): R$ 110,00 total, pago Pix R$ 50 + Dinheiro R$ 100, troco R$ 40,00`);
-
-    // TEST 7: Idempotência / Prevenção de Clique Duplo
-    console.log('\n[Teste 7] Idempotência / Prevenção de Clique Duplo');
-    const duplicateSale = await request('POST', '/api/sales/checkout', {
-      items: [
-        { variation_id: varP.id, quantity: 1 }
+    });
+    test("Reuso de chave com payload diferente rejeitado", () =>
+      assert.equal(altered.status, 400));
+    const rPayload = {
+      sale_id: sold.id,
+      items: [{ sale_item_id: sold.items[0].id, quantity: 1, restock: true }],
+      refund_method: "money",
+      reason: "Devolução de teste",
+      idempotency_key: crypto.randomUUID(),
+    };
+    const returned = await req("/returns/process", rPayload);
+    const cash = (await req("/cash/current")).data;
+    test("Devolução respeita desconto e caixa", () => {
+      assert.equal(returned.status, 201, JSON.stringify(returned.data));
+      assert.equal(returned.data.refund_amount_cents, 8000);
+      assert.equal(cash.summary.expected_physical_cash_cents, 0);
+    });
+    const retDup = await req("/returns/process", rPayload);
+    test("Retentativa de devolução não duplica restituição", () => {
+      assert.equal(retDup.status, 200);
+      assert.equal(
+        get("SELECT COUNT(*) AS n FROM financial_entries WHERE kind='refund'")
+          .n,
+        1,
+      );
+    });
+    const dash = await req("/reports/dashboard");
+    test("Devolução integral zera receita e margem", () => {
+      assert.equal(dash.data.gross_revenue_cents, 0);
+      assert.equal(dash.data.margin_estimated_cents, 0);
+    });
+    const over = await req(
+      "/sales/checkout",
+      checkout(id, 1, {
+        payments: [
+          { method: "pix", amount_cents: 20000 },
+          { method: "money", amount_cents: 100 },
+        ],
+      }),
+    );
+    test("Troco não excede dinheiro recebido", () =>
+      assert.equal(over.status, 400));
+    const discount = await req(
+      "/sales/checkout",
+      checkout(id, 1, { discount_cents: 100000 }),
+    );
+    test("Desconto excessivo rejeitado", () =>
+      assert.equal(discount.status, 400));
+    const stringPay = await req(
+      "/sales/checkout",
+      checkout(id, 1, { payments: [{ method: "pix", amount_cents: "10000" }] }),
+    );
+    test("Valor de pagamento em texto rejeitado", () =>
+      assert.equal(stringPay.status, 400));
+    const neg = await req("/products", {
+      name: "Inválido",
+      sale_price_cents: 10000,
+      variations: [{ size: "P", color: "Rosa", stock: -5 }],
+    });
+    test("Estoque inicial negativo rejeitado", () =>
+      assert.equal(neg.status, 400));
+    const fractional = await req("/sales/checkout", checkout(id, 1.5));
+    test("Quantidade fracionária rejeitada", () =>
+      assert.equal(fractional.status, 400));
+    const raceProduct = await newProduct(1);
+    const raceId = raceProduct.variations[0].id;
+    const race = await Promise.all([
+      req("/sales/checkout", checkout(raceId)),
+      req("/sales/checkout", checkout(raceId)),
+    ]);
+    test("Requisições simultâneas pela última unidade", () => {
+      assert.deepEqual(race.map((r) => r.status).sort(), [201, 400]);
+      assert.equal(
+        get("SELECT stock FROM product_variations WHERE id=?", [raceId]).stock,
+        0,
+      );
+    });
+    const exchangeSale = (await req("/sales/checkout", checkout(id))).data.sale;
+    const original = (await req("/sales/" + exchangeSale.saleId)).data;
+    const newP = await newProduct(5, 12000);
+    const exBody = {
+      sale_id: original.id,
+      returned_items: [
+        { sale_item_id: original.items[0].id, quantity: 1, restock: true },
       ],
-      payments: [
-        { method: 'pix', amount_cents: 11000 }
+      new_items: [{ variation_id: newP.variations[0].id, quantity: 1 }],
+      payments: [{ method: "pix", amount_cents: 2000 }],
+      reason: "Troca de teste",
+      idempotency_key: crypto.randomUUID(),
+    };
+    const ex = await req("/returns/exchange", exBody);
+    test("Troca registra diferença, nova venda e histórico", () => {
+      assert.equal(ex.status, 201, JSON.stringify(ex.data));
+      assert.equal(ex.data.difference_cents, 2000);
+      assert.equal(
+        get("SELECT exchange_credit_cents FROM sales WHERE id=?", [
+          ex.data.exchange_sale_id,
+        ]).exchange_credit_cents,
+        10000,
+      );
+      assert.equal(
+        get(
+          "SELECT amount_cents FROM financial_entries WHERE sale_id=? AND payment_method='pix'",
+          [ex.data.exchange_sale_id],
+        ).amount_cents,
+        2000,
+      );
+    });
+    const cancellation = await req("/sales/checkout", checkout(id));
+    const cancelId = cancellation.data.sale.saleId;
+    const cancelDetail = (await req("/sales/" + cancelId)).data;
+    assert.equal(
+      (
+        await req("/sales/" + cancelId + "/cancel", {
+          reason: "Cancelamento de teste",
+        })
+      ).status,
+      200,
+    );
+    const invalidEx = await req("/returns/exchange", {
+      ...exBody,
+      sale_id: cancelId,
+      returned_items: [
+        { sale_item_id: cancelDetail.items[0].id, quantity: 1, restock: true },
       ],
-      idempotency_key: `test-key-sale-${runId}`
-    }, attendantToken);
-
-    if (!duplicateSale.data.duplicate) throw new Error('Falha: Idempotência permitiu duplicar venda!');
-    console.log('✓ Idempotência validada: Requisição duplicada ignorada com sucesso');
-
-    // TEST 8: Bloqueio de Estoque Insuficiente
-    console.log('\n[Teste 8] Bloqueio de Estoque Insuficiente');
-    const varG = prod.variations.find(v => v.size === 'G'); // only 1 unit!
-    const overbuyRes = await request('POST', '/api/sales/checkout', {
-      items: [
-        { variation_id: varG.id, quantity: 5 } // Try to buy 5
+      idempotency_key: crypto.randomUUID(),
+    });
+    test("Troca de venda cancelada bloqueada", () =>
+      assert.equal(invalidEx.status, 400));
+    const qSale = (await req("/sales/checkout", checkout(id))).data.sale;
+    const qDetail = (await req("/sales/" + qSale.id)).data;
+    const negativeEx = await req("/returns/exchange", {
+      ...exBody,
+      sale_id: qSale.id,
+      returned_items: [
+        { sale_item_id: qDetail.items[0].id, quantity: -1, restock: true },
       ],
-      payments: [
-        { method: 'money', amount_cents: 55000 }
-      ]
-    }, attendantToken);
-
-    if (overbuyRes.status !== 400 || !overbuyRes.data.error.includes('Estoque insuficiente')) {
-      throw new Error('Falha: Sistema permitiu compra acima do estoque!');
+      idempotency_key: crypto.randomUUID(),
+    });
+    test("Quantidade negativa na troca bloqueada", () =>
+      assert.equal(negativeEx.status, 400));
+    const userPassword = crypto.randomBytes(16).toString("hex");
+    await req("/auth/users", {
+      name: "Atendente teste",
+      username: "test-attendant",
+      password: userPassword,
+      role: "attendant",
+    });
+    const att = (
+      await req(
+        "/auth/login",
+        { username: "test-attendant", password: userPassword },
+        null,
+      )
+    ).data.token;
+    const forbidden = await req("/returns/process", rPayload, att);
+    test("Atendente não autoriza restituições", () =>
+      assert.equal(forbidden.status, 403));
+    const attProds = await req("/products", null, att);
+    test("Custo oculto para atendente", () =>
+      assert.equal(
+        attProds.data.some((p) => p.cost_price_cents !== undefined),
+        false,
+      ));
+    const attDisc = await req(
+      "/sales/checkout",
+      checkout(id, 1, { discount_cents: 1 }),
+      att,
+    );
+    test("Desconto exige administrador", () =>
+      assert.equal(attDisc.status, 400));
+    const changeProd = await newProduct();
+    const edited = await req(
+      "/products/" + changeProd.id,
+      { ...changeProd, name: "Peça editada" },
+      token,
+      "PUT",
+    );
+    test("Edição mantém estoque e identificadores", () => {
+      assert.equal(edited.status, 200, JSON.stringify(edited.data));
+      assert.equal(
+        get("SELECT stock FROM product_variations WHERE id=?", [
+          changeProd.variations[0].id,
+        ]).stock,
+        10,
+      );
+    });
+    const listing = await req("/sales?limit=2&page=1");
+    test("Histórico paginado", () => {
+      assert.equal(listing.data.sales.length, 2);
+      assert.ok(listing.data.total > 2);
+    });
+    const csv = await req("/reports/export/sales");
+    test("CSV disponível", () => assert.equal(csv.status, 200));
+    const recovered = await req(
+      "/sales/checkout/key/" + payload.idempotency_key,
+    );
+    test("API recupera venda confirmada", () =>
+      assert.equal(recovered.data.id, sold.id));
+    const child = spawnSync(
+      process.execPath,
+      [
+        "-e",
+        "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.env.DB_PATH);console.log(d.prepare('select count(*) as n from sales').get().n);d.close()",
+      ],
+      { env: process.env, encoding: "utf8" },
+    );
+    test("Outro processo lê vendas já confirmadas em disco", () => {
+      assert.equal(child.status, 0, child.stderr);
+      assert.equal(
+        Number(child.stdout.trim()),
+        get("SELECT COUNT(*) AS n FROM sales").n,
+      );
+    });
+    const { dateBounds } = require("./validation");
+    test("Dia de São Paulo usa limite local", () =>
+      assert.equal(
+        dateBounds("2026-10-05", null).start,
+        "2026-10-05T03:00:00.000Z",
+      ));
+    const lowPrice = await newProduct(10, 1);
+    const tinyPayload = checkout(lowPrice.variations[0].id, 3, {
+      payments: [{ method: "money", amount_cents: 1 }],
+      discount_cents: 2,
+    });
+    const tiny = await req("/sales/checkout", tinyPayload);
+    const td = (await req("/sales/" + tiny.data.sale.id)).data;
+    let refunds = 0;
+    for (let j = 0; j < 3; j++) {
+      const rr = await req("/returns/process", {
+        sale_id: td.id,
+        items: [{ sale_item_id: td.items[0].id, quantity: 1, restock: true }],
+        reason: "Arredondamento",
+        refund_method: "money",
+        idempotency_key: crypto.randomUUID(),
+      });
+      assert.equal(rr.status, 201, JSON.stringify(rr.data));
+      refunds += rr.data.refund_amount_cents;
     }
-    console.log('✓ Bloqueio de estoque verificado: Tentativa de venda indisponível rejeitada');
-
-    // TEST 9: Disputa pela Última Unidade
-    console.log('\n[Teste 9] Disputa pela Última Unidade');
-    // Sell the 1 unit of G
-    const buyLastUnit = await request('POST', '/api/sales/checkout', {
-      items: [{ variation_id: varG.id, quantity: 1 }],
-      payments: [{ method: 'money', amount_cents: 11000 }]
-    }, attendantToken);
-    if (buyLastUnit.status !== 201) throw new Error('Falha ao comprar última unidade');
-
-    // Now attempt to buy G again immediately
-    const buyAfterDepleted = await request('POST', '/api/sales/checkout', {
-      items: [{ variation_id: varG.id, quantity: 1 }],
-      payments: [{ method: 'money', amount_cents: 11000 }]
-    }, attendantToken);
-
-    if (buyAfterDepleted.status !== 400) throw new Error('Falha: Permitiu vender peça esgotada!');
-    console.log('✓ Disputa resolvida: Segunda requisição rejeitada após última unidade vendida');
-
-    // TEST 10: Devolução e Troca sem Estorno Duplicado
-    console.log('\n[Teste 10] Devolução e Proteção contra Estorno Duplicado');
-    const firstSaleId = saleRes.data.sale.saleId;
-    const saleDetails = await request('GET', `/api/sales/${firstSaleId}`, null, attendantToken);
-    const soldItem = saleDetails.data.items[0];
-
-    // Return the item with restock = true
-    const returnRes = await request('POST', '/api/returns/process', {
-      sale_id: firstSaleId,
-      items: [
-        { sale_item_id: soldItem.id, quantity: 1, restock: true }
-      ],
-      reason: 'Cliente precisou trocar o tamanho'
-    }, attendantToken);
-
-    if (returnRes.status !== 201) throw new Error('Falha na devolução: ' + JSON.stringify(returnRes.data));
-    console.log('✓ Devolução processada e peça retornada ao estoque disponível');
-
-    // Attempt duplicate return on same item
-    const duplicateReturn = await request('POST', '/api/returns/process', {
-      sale_id: firstSaleId,
-      items: [
-        { sale_item_id: soldItem.id, quantity: 1, restock: true }
-      ],
-      reason: 'Tentativa duplicada'
-    }, attendantToken);
-
-    if (duplicateReturn.status !== 400) throw new Error('Falha: Permitido estorno duplicado!');
-    console.log('✓ Bloqueio de estorno duplicado validado com sucesso');
-
-    // TEST 11: Fechamento de Caixa e Apuração de Saldos
-    console.log('\n[Teste 11] Fechamento e Conferência de Caixa');
-    const currentCash = await request('GET', '/api/cash/current', null, attendantToken);
-    const expectedCash = currentCash.data.summary.expected_physical_cash_cents;
-
-    const closeRes = await request('POST', '/api/cash/close', {
-      register_id: currentCash.data.register.id,
-      counted_cash_cents: expectedCash,
-      notes: 'Conferência de teste OK'
-    }, attendantToken);
-
-    if (closeRes.status !== 200 || closeRes.data.summary.difference_cents !== 0) {
-      throw new Error('Falha no fechamento de caixa');
-    }
-    console.log(`✓ Caixa fechado: Saldo físico em dinheiro conferido com exatidão (R$ ${(expectedCash / 100).toFixed(2)})`);
-
-    // TEST 12: Métricas do Painel e Exportação CSV
-    console.log('\n[Teste 12] Painel Gerencial & CSV');
-    const dashRes = await request('GET', '/api/reports/dashboard?period=today', null, adminToken);
-    if (dashRes.status !== 200) throw new Error('Falha ao obter dashboard');
-    console.log(`✓ Dashboard: ${dashRes.data.sales_count} vendas, R$ ${(dashRes.data.gross_revenue_cents / 100).toFixed(2)} faturados`);
-
-    const csvSales = await request('GET', '/api/reports/export/sales', null, adminToken);
-    if (csvSales.status !== 200 || typeof csvSales.data !== 'string') throw new Error('Falha ao exportar CSV');
-    console.log('✓ Exportação CSV de vendas gerada com sucesso');
-
-    console.log('\n======================================================');
-    console.log('🎉 TODOS OS 12 TESTES DO BACKEND PASSARAM COM SUCESSO! 🎉');
-    console.log('======================================================\n');
-  } catch (err) {
-    console.error('\n❌ ERRO NO TESTE:', err);
-    process.exit(1);
+    test("Devoluções fracionadas preservam centavos", () =>
+      assert.equal(refunds, 1));
+    const auth = require("../node_modules/jsonwebtoken");
+    const forged = auth.sign(
+      { id: login.data.user.id, version: 0 },
+      "lory-boutique-secret-key-2026-secure",
+    );
+    const forgedRes = await req("/auth/users", null, forged);
+    test("Antigo segredo público não autentica", () =>
+      assert.equal(forgedRes.status, 401));
+    // Convert a marked legacy demo; repeated startup must not erase subsequently registered products.
+    run("UPDATE store_settings SET value='1' WHERE key='demo_mode'");
+    await seedDatabase();
+    test("Conversão da demonstração remove todos os produtos e vendas", () => {
+      for (const t of [
+        "products",
+        "product_variations",
+        "sales",
+        "returns",
+        "cash_registers",
+      ])
+        assert.equal(get(`SELECT COUNT(*) AS n FROM ${t}`).n, 0);
+    });
+    const after = await newProduct();
+    await seedDatabase();
+    test("Reinicialização preserva cadastro real posterior", () =>
+      assert.ok(get("SELECT id FROM products WHERE id=?", [after.id])));
+    console.log(
+      `\n${passed} verificações aprovadas. Banco temporário removido.`,
+    );
   } finally {
-    server.close();
+    await new Promise((r) => server.close(r));
+    closeDB();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
-}
-
-runTestSuite().then(() => process.exit(0));
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

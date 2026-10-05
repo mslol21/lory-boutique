@@ -1,27 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { User, StoreSettings, InterestItem } from './types';
-import { apiRequest, setAuthToken } from './services/api';
-import { Navbar } from './components/Navbar';
-import { Showcase } from './components/Showcase';
-import { POS } from './components/POS';
-import { ProductsManager } from './components/ProductsManager';
-import { CashManager } from './components/CashManager';
-import { SalesManager } from './components/SalesManager';
-import { Dashboard } from './components/Dashboard';
-import { SettingsManager } from './components/SettingsManager';
-import { LoginModal } from './components/LoginModal';
+import React, { useState, useEffect } from "react";
+import { User, StoreSettings, InterestItem } from "./types";
+import { apiRequest, setAuthToken } from "./services/api";
+import { Navbar } from "./components/Navbar";
+import { Showcase } from "./components/Showcase";
+import { POS } from "./components/POS";
+import { ProductsManager } from "./components/ProductsManager";
+import { CashManager } from "./components/CashManager";
+import { SalesManager } from "./components/SalesManager";
+import { Dashboard } from "./components/Dashboard";
+import { SettingsManager } from "./components/SettingsManager";
+import { LoginModal } from "./components/LoginModal";
 
 export function App() {
   const [currentView, setCurrentView] = useState<
-    'showcase' | 'pos' | 'products' | 'cash' | 'sales' | 'dashboard' | 'settings'
-  >('showcase');
+    | "showcase"
+    | "pos"
+    | "products"
+    | "cash"
+    | "sales"
+    | "dashboard"
+    | "settings"
+  >("showcase");
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [isCashOpen, setIsCashOpen] = useState(false);
 
   // Interest List for Public Showcase
-  const [interestList, setInterestList] = useState<InterestItem[]>([]);
+  const [interestList, setInterestList] = useState<InterestItem[]>(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem("lory_interest_v1") || "[]",
+      );
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("lory_interest_v1", JSON.stringify(interestList));
+    } catch {
+      /* optional interest draft */
+    }
+  }, [interestList]);
   const [isInterestDrawerOpen, setIsInterestDrawerOpen] = useState(false);
 
   // Login Modal
@@ -29,10 +51,10 @@ export function App() {
 
   // Check user session
   const checkSession = async () => {
-    const token = localStorage.getItem('lory_auth_token');
+    const token = localStorage.getItem("lory_auth_token");
     if (!token) return;
     try {
-      const res = await apiRequest<{ user: User }>('/auth/me');
+      const res = await apiRequest<{ user: User }>("/auth/me");
       setCurrentUser(res.user);
     } catch (err) {
       setAuthToken(null);
@@ -43,7 +65,7 @@ export function App() {
   // Fetch Public Settings
   const fetchSettings = async () => {
     try {
-      const res = await apiRequest<StoreSettings>('/public/settings');
+      const res = await apiRequest<StoreSettings>("/public/settings");
       setSettings(res);
     } catch (err) {
       console.error(err);
@@ -53,7 +75,7 @@ export function App() {
   // Check cash status
   const checkCashStatus = async () => {
     try {
-      const res = await apiRequest<any>('/cash/current');
+      const res = await apiRequest<any>("/cash/current");
       setIsCashOpen(res.open);
     } catch (err) {
       setIsCashOpen(false);
@@ -69,17 +91,17 @@ export function App() {
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
     checkCashStatus();
-    setCurrentView('pos'); // Automatically navigate to POS on login
+    setCurrentView("pos"); // Automatically navigate to POS on login
   };
 
   const handleLogout = () => {
     setAuthToken(null);
     setCurrentUser(null);
-    setCurrentView('showcase');
+    setCurrentView("showcase");
   };
 
   const handleNavigate = (view: any) => {
-    if (view !== 'showcase' && !currentUser) {
+    if (view !== "showcase" && !currentUser) {
       setIsLoginModalOpen(true);
       return;
     }
@@ -104,7 +126,7 @@ export function App() {
 
       {/* Main Content Area */}
       <main className="flex-1">
-        {currentView === 'showcase' && (
+        {currentView === "showcase" && (
           <Showcase
             settings={settings}
             interestList={interestList}
@@ -114,35 +136,40 @@ export function App() {
           />
         )}
 
-        {currentView === 'pos' && (
+        {currentView === "pos" && (
           <POS
+            key={currentUser?.id}
+            currentUser={currentUser}
             settings={settings}
             isCashOpen={isCashOpen}
-            onOpenCash={() => setCurrentView('cash')}
+            onOpenCash={() => setCurrentView("cash")}
           />
         )}
 
-        {currentView === 'products' && (
+        {currentView === "products" && (
           <ProductsManager currentUser={currentUser} />
         )}
 
-        {currentView === 'cash' && (
+        {currentView === "cash" && (
           <CashManager onStatusChange={checkCashStatus} />
         )}
 
-        {currentView === 'sales' && (
+        {currentView === "sales" && (
           <SalesManager currentUser={currentUser} settings={settings} />
         )}
 
-        {currentView === 'dashboard' && (
+        {currentView === "dashboard" && (
           <Dashboard
             currentUser={currentUser}
-            onNavigateToProducts={() => setCurrentView('products')}
+            onNavigateToProducts={() => setCurrentView("products")}
           />
         )}
 
-        {currentView === 'settings' && (
-          <SettingsManager settings={settings} onSettingsUpdated={fetchSettings} />
+        {currentView === "settings" && (
+          <SettingsManager
+            settings={settings}
+            onSettingsUpdated={fetchSettings}
+          />
         )}
       </main>
 

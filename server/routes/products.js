@@ -1,485 +1,358 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
-const { get, query, run, transaction } = require('../db');
-const { authenticate, requireRole, logAudit } = require('../middleware/auth');
-
-// List categories
-router.get('/categories', authenticate, (req, res) => {
-  const cats = query('SELECT * FROM categories ORDER BY name ASC');
-  return res.json(cats);
-});
-
-// Create category
-router.post('/categories', authenticate, requireRole('admin'), (req, res) => {
-  const { name, description } = req.body;
-  if (!name || !name.trim()) {
-    return res.status(400).json({ error: 'Nome da categoria é obrigatório.' });
-  }
-
-  const existing = get('SELECT id FROM categories WHERE LOWER(name) = LOWER(?)', [name.trim()]);
-  if (existing) {
-    return res.status(409).json({ error: 'Categoria já existe.' });
-  }
-
-  const id = uuidv4();
-  const now = new Date().toISOString();
-  run('INSERT INTO categories (id, name, description, created_at) VALUES (?, ?, ?, ?)', [
-    id, name.trim(), description || '', now
-  ]);
-
-  return res.status(201).json({ id, name: name.trim(), description, created_at: now });
-});
-
-// List products (for internal POS / Inventory)
-router.get('/', authenticate, (req, res) => {
-  const { search, category_id, status } = req.query;
-  const isAdmin = req.user.role === 'admin';
-
-  let sql = `
-    SELECT p.*, c.name as category_name
-    FROM products p
-    LEFT JOIN categories c ON p.category_id = c.id
-    WHERE 1=1
-  `;
-  const params = [];
-
-  if (status && status !== 'all') {
-    sql += ' AND p.status = ?';
-    params.push(status);
-  } else if (!status) {
-    sql += " AND p.status = 'active'";
-  }
-
-  if (category_id) {
-    sql += ' AND p.category_id = ?';
-    params.push(category_id);
-  }
-
-  if (search) {
-    sql += ` AND (p.name LIKE ? OR p.reference LIKE ? OR p.id IN (
-      SELECT product_id FROM product_variations WHERE sku LIKE ? OR barcode LIKE ?
-    ))`;
-    const searchWildcard = `%${search.trim()}%`;
-    params.push(searchWildcard, searchWildcard, searchWildcard, searchWildcard);
-  }
-
-  sql += ' ORDER BY p.created_at DESC';
-
-  const products = query(sql, params);
-
-  // Attach variations to each product
-  const productsWithVariations = products.map(prod => {
-    const variations = query(
-      'SELECT * FROM product_variations WHERE product_id = ? ORDER BY size ASC, color ASC',
-      [prod.id]
-    );
-
-    const images = prod.images ? JSON.parse(prod.images) : [];
-    const totalStock = variations.reduce((sum, v) => sum + v.stock, 0);
-    const hasLowStock = variations.some(v => v.stock <= v.min_stock);
-
-    const result = {
-      ...prod,
-      images,
-      variations,
-      total_stock: totalStock,
-      has_low_stock: hasLowStock
-    };
-
-    // If attendant, do not expose cost price
-    if (!isAdmin) {
-      delete result.cost_price_cents;
-    }
-
-    return result;
-  });
-
-  return res.json(productsWithVariations);
-});
-
-// Get single product
-router.get('/:id', authenticate, (req, res) => {
-  const { id } = req.params;
-  const isAdmin = req.user.role === 'admin';
-
-  const prod = get(
-    `SELECT p.*, c.name as category_name
-     FROM products p
-     LEFT JOIN categories c ON p.category_id = c.id
-     WHERE p.id = ?`,
-    [id]
-  );
-
-  if (!prod) {
-    return res.status(404).json({ error: 'Produto não encontrado.' });
-  }
-
-  const variations = query(
-    'SELECT * FROM product_variations WHERE product_id = ? ORDER BY size ASC, color ASC',
-    [prod.id]
-  );
-  const images = prod.images ? JSON.parse(prod.images) : [];
-
+const { randomUUID } = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+const { get, query, run, transaction, getDbPath } = require("../db");
+const { authenticate, requireRole, logAudit } = require("../middleware/auth");
+const { integer, text } = require("../validation");
+const { stock } = require("../commerce");
+function view(p, role) {
   const result = {
-    ...prod,
-    images,
-    variations
+    ...p,
+    images: JSON.parse(p.images || "[]"),
+    variations: query(
+      "SELECT * FROM product_variations WHERE product_id=? ORDER BY size,color",
+      [p.id],
+    ),
   };
-
-  if (!isAdmin) {
-    delete result.cost_price_cents;
-  }
-
-  return res.json(result);
-});
-
-// Create product (admin only)
-router.post('/', authenticate, requireRole('admin'), (req, res) => {
-  const {
-    name,
-    description,
-    category_id,
-    reference,
-    cost_price_cents,
-    sale_price_cents,
-    promo_price_cents,
-    images,
-    is_showcase,
-    variations
-  } = req.body;
-
-  if (!name || !name.trim()) {
-    return res.status(400).json({ error: 'Nome do produto é obrigatório.' });
-  }
-
-  if (sale_price_cents === undefined || sale_price_cents <= 0) {
-    return res.status(400).json({ error: 'Preço de venda deve ser maior que zero.' });
-  }
-
-  if (!variations || !Array.isArray(variations) || variations.length === 0) {
-    return res.status(400).json({ error: 'O produto deve ter pelo menos uma variação (tamanho/cor).' });
-  }
-
-  const prodId = uuidv4();
-  const now = new Date().toISOString();
-  const imagesJson = JSON.stringify(Array.isArray(images) ? images : []);
-
-  try {
-    transaction(() => {
-      run(
-        `INSERT INTO products (
-          id, name, description, category_id, reference, cost_price_cents,
-          sale_price_cents, promo_price_cents, images, is_showcase, status,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-        [
-          prodId,
-          name.trim(),
-          description || '',
-          category_id || null,
-          reference ? reference.trim() : null,
-          cost_price_cents || 0,
-          sale_price_cents,
-          promo_price_cents || null,
-          imagesJson,
-          is_showcase !== undefined ? (is_showcase ? 1 : 0) : 1,
-          now,
-          now
-        ]
-      );
-
-      for (const v of variations) {
-        if (!v.size || !v.color) {
-          throw new Error('Cada variação precisa de tamanho e cor informados.');
-        }
-
-        const varId = uuidv4();
-        const initialStock = parseInt(v.stock, 10) || 0;
-        const minStock = parseInt(v.min_stock, 10) || 1;
-
-        run(
-          `INSERT INTO product_variations (
-            id, product_id, size, color, sku, barcode, stock, min_stock, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            varId,
-            prodId,
-            v.size.trim(),
-            v.color.trim(),
-            v.sku ? v.sku.trim() : null,
-            v.barcode ? v.barcode.trim() : null,
-            initialStock,
-            minStock,
-            now,
-            now
-          ]
-        );
-
-        if (initialStock > 0) {
-          run(
-            `INSERT INTO stock_movements (
-              id, variation_id, type, quantity, previous_stock, new_stock, reason, reference_id, user_id, created_at
-            ) VALUES (?, ?, 'in', ?, 0, ?, 'Estoque Inicial no Cadastro', NULL, ?, ?)`,
-            [uuidv4(), varId, initialStock, initialStock, req.user.id, now]
-          );
-        }
-      }
-    });
-
-    logAudit(req.user.id, 'CREATE_PRODUCT', 'product', prodId, { name, reference });
-
-    return res.status(201).json({ id: prodId, message: 'Produto cadastrado com sucesso.' });
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-});
-
-// Update product
-router.put('/:id', authenticate, requireRole('admin'), (req, res) => {
-  const { id } = req.params;
-  const {
-    name,
-    description,
-    category_id,
-    reference,
-    cost_price_cents,
-    sale_price_cents,
-    promo_price_cents,
-    images,
-    is_showcase,
-    status
-  } = req.body;
-
-  const prod = get('SELECT id FROM products WHERE id = ?', [id]);
-  if (!prod) {
-    return res.status(404).json({ error: 'Produto não encontrado.' });
-  }
-
-  const now = new Date().toISOString();
-  const imagesJson = images ? JSON.stringify(images) : undefined;
-
-  run(
-    `UPDATE products SET
-      name = COALESCE(?, name),
-      description = COALESCE(?, description),
-      category_id = COALESCE(?, category_id),
-      reference = COALESCE(?, reference),
-      cost_price_cents = COALESCE(?, cost_price_cents),
-      sale_price_cents = COALESCE(?, sale_price_cents),
-      promo_price_cents = ?,
-      images = COALESCE(?, images),
-      is_showcase = COALESCE(?, is_showcase),
-      status = COALESCE(?, status),
-      updated_at = ?
-    WHERE id = ?`,
-    [
-      name ? name.trim() : null,
-      description,
-      category_id,
-      reference ? reference.trim() : null,
-      cost_price_cents,
-      sale_price_cents,
-      promo_price_cents,
-      imagesJson,
-      is_showcase !== undefined ? (is_showcase ? 1 : 0) : null,
-      status,
-      now,
-      id
-    ]
-  );
-
-  logAudit(req.user.id, 'UPDATE_PRODUCT', 'product', id, { name, sale_price_cents, status });
-
-  return res.json({ message: 'Produto atualizado com sucesso.' });
-});
-
-// Archive product or delete if no sales
-router.delete('/:id', authenticate, requireRole('admin'), (req, res) => {
-  const { id } = req.params;
-
-  const prod = get('SELECT id, name FROM products WHERE id = ?', [id]);
-  if (!prod) {
-    return res.status(404).json({ error: 'Produto não encontrado.' });
-  }
-
-  // Check if product has sales
-  const salesCount = get(
-    `SELECT COUNT(*) as count FROM sale_items si
-     JOIN product_variations pv ON si.variation_id = pv.id
-     WHERE pv.product_id = ?`,
-    [id]
-  );
-
-  if (salesCount && salesCount.count > 0) {
-    // Cannot delete permanently: archive it!
-    run("UPDATE products SET status = 'archived', is_showcase = 0 WHERE id = ?", [id]);
-    logAudit(req.user.id, 'ARCHIVE_PRODUCT', 'product', id, { reason: 'Has sales associated' });
-    return res.json({
-      message: 'O produto possui histórico de vendas e foi arquivado com segurança para preservar a integridade dos relatórios.',
-      archived: true
-    });
-  }
-
-  // If no sales, allow permanent removal
-  transaction(() => {
-    run('DELETE FROM stock_movements WHERE variation_id IN (SELECT id FROM product_variations WHERE product_id = ?)', [id]);
-    run('DELETE FROM product_variations WHERE product_id = ?', [id]);
-    run('DELETE FROM products WHERE id = ?', [id]);
+  result.total_stock = result.variations.reduce((s, v) => s + v.stock, 0);
+  result.has_low_stock = result.variations.some((v) => v.stock <= v.min_stock);
+  if (role !== "admin") delete result.cost_price_cents;
+  return result;
+}
+function imageURLs(values) {
+  if (!Array.isArray(values) || values.length > 10)
+    throw new Error("Informe até 10 fotos.");
+  return values.map((value) => {
+    if (
+      typeof value !== "string" ||
+      value.length > 2000 ||
+      (!value.startsWith("/uploads/") && !/^https:\/\//.test(value))
+    )
+      throw new Error("Use fotos enviadas ou URLs HTTPS válidas.");
+    return value;
   });
-
-  logAudit(req.user.id, 'DELETE_PRODUCT', 'product', id, { name: prod.name });
-
-  return res.json({ message: 'Produto excluído com sucesso.', archived: false });
-});
-
-// Add variation to existing product
-router.post('/:id/variations', authenticate, requireRole('admin'), (req, res) => {
-  const { id } = req.params;
-  const { size, color, sku, barcode, stock, min_stock } = req.body;
-
-  if (!size || !color) {
-    return res.status(400).json({ error: 'Tamanho e cor são obrigatórios.' });
-  }
-
-  const prod = get('SELECT id FROM products WHERE id = ?', [id]);
-  if (!prod) {
-    return res.status(404).json({ error: 'Produto não encontrado.' });
-  }
-
-  const varId = uuidv4();
-  const now = new Date().toISOString();
-  const initialStock = parseInt(stock, 10) || 0;
-  const minStockVal = parseInt(min_stock, 10) || 1;
-
-  try {
-    transaction(() => {
-      run(
-        `INSERT INTO product_variations (
-          id, product_id, size, color, sku, barcode, stock, min_stock, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          varId, id, size.trim(), color.trim(),
-          sku ? sku.trim() : null,
-          barcode ? barcode.trim() : null,
-          initialStock, minStockVal, now, now
-        ]
-      );
-
-      if (initialStock > 0) {
-        run(
-          `INSERT INTO stock_movements (
-            id, variation_id, type, quantity, previous_stock, new_stock, reason, reference_id, user_id, created_at
-          ) VALUES (?, ?, 'in', ?, 0, ?, 'Entrada Inicial de Variação', NULL, ?, ?)`,
-          [uuidv4(), varId, initialStock, initialStock, req.user.id, now]
-        );
-      }
-    });
-
-    logAudit(req.user.id, 'ADD_VARIATION', 'product_variation', varId, { product_id: id, size, color });
-
-    return res.status(201).json({ id: varId, message: 'Variação adicionada com sucesso.' });
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-});
-
-// Stock movement (Adjust / Inventory / Entrada de mercadorias)
-router.post('/stock/movement', authenticate, requireRole('admin'), (req, res) => {
-  const { variation_id, type, quantity, reason } = req.body;
-
-  if (!variation_id || !type || quantity === undefined || !reason || !reason.trim()) {
-    return res.status(400).json({ error: 'Variação, tipo, quantidade e motivo são obrigatórios.' });
-  }
-
-  if (!['in', 'out', 'adjust'].includes(type)) {
-    return res.status(400).json({ error: 'Tipo inválido (permitidos: in, out, adjust).' });
-  }
-
-  const variation = get(
-    `SELECT pv.*, p.name as product_name
-     FROM product_variations pv
-     JOIN products p ON pv.product_id = p.id
-     WHERE pv.id = ?`,
-    [variation_id]
-  );
-
-  if (!variation) {
-    return res.status(404).json({ error: 'Variação não encontrada.' });
-  }
-
-  const qty = parseInt(quantity, 10);
-  const currentStock = variation.stock;
-  let newStock = currentStock;
-
-  if (type === 'in') {
-    if (qty <= 0) return res.status(400).json({ error: 'Quantidade de entrada deve ser maior que zero.' });
-    newStock = currentStock + qty;
-  } else if (type === 'out') {
-    if (qty <= 0) return res.status(400).json({ error: 'Quantidade de saída deve ser maior que zero.' });
-    if (currentStock - qty < 0) {
-      return res.status(400).json({ error: `Estoque insuficiente para saída. Atual: ${currentStock}, Solicitado: ${qty}` });
-    }
-    newStock = currentStock - qty;
-  } else if (type === 'adjust') {
-    if (qty < 0) return res.status(400).json({ error: 'Novo estoque de inventário não pode ser negativo.' });
-    newStock = qty;
-  }
-
-  const now = new Date().toISOString();
-  const movementQty = type === 'adjust' ? (newStock - currentStock) : qty;
-
-  transaction(() => {
-    run('UPDATE product_variations SET stock = ?, updated_at = ? WHERE id = ?', [newStock, now, variation_id]);
-    run(
-      `INSERT INTO stock_movements (
-        id, variation_id, type, quantity, previous_stock, new_stock, reason, reference_id, user_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
-      [uuidv4(), variation_id, type, movementQty, currentStock, newStock, reason.trim(), req.user.id, now]
+}
+function validateProduct(body, existing) {
+  const name = text(body.name, "Nome", 200),
+    description = text(body.description ?? "", "Descrição", 4000, false);
+  const sale = integer(body.sale_price_cents, "Preço de venda", 1),
+    cost = integer(body.cost_price_cents ?? 0, "Preço de custo");
+  const promo =
+    body.promo_price_cents == null
+      ? null
+      : integer(body.promo_price_cents, "Preço promocional", 1);
+  if (promo !== null && promo > sale)
+    throw new Error("Promoção não pode ser superior ao preço normal.");
+  const category = body.category_id || null;
+  if (category && !get("SELECT id FROM categories WHERE id=?", [category]))
+    throw new Error("Categoria inválida.");
+  if (
+    !Array.isArray(body.variations) ||
+    !body.variations.length ||
+    body.variations.length > 200
+  )
+    throw new Error("Cadastre ao menos um tamanho e cor.");
+  const combinations = new Set();
+  const variations = body.variations.map((v) => {
+    const size = text(v.size, "Tamanho", 30),
+      color = text(v.color, "Cor", 80),
+      combo = size.toLowerCase() + "|" + color.toLowerCase();
+    if (combinations.has(combo)) throw new Error("Tamanho e cor repetidos.");
+    combinations.add(combo);
+    const old =
+      v.id && existing
+        ? get("SELECT * FROM product_variations WHERE id=? AND product_id=?", [
+            v.id,
+            existing.id,
+          ])
+        : null;
+    if (v.id && !old) throw new Error("Variação inválida.");
+    return {
+      id: old?.id ?? randomUUID(),
+      size,
+      color,
+      sku: v.sku ? text(v.sku, "SKU", 100) : null,
+      barcode: v.barcode ? text(v.barcode, "Código de barras", 100) : null,
+      stock: old?.stock ?? integer(v.stock ?? 0, "Estoque"),
+      min_stock: integer(v.min_stock ?? 1, "Estoque mínimo"),
+      old,
+    };
+  });
+  if (
+    existing &&
+    query("SELECT id FROM product_variations WHERE product_id=?", [
+      existing.id,
+    ]).some((v) => !variations.some((n) => n.id === v.id))
+  )
+    throw new Error(
+      "Mantenha as variações existentes para preservar o histórico.",
     );
-  });
-
-  logAudit(req.user.id, 'STOCK_MOVEMENT', 'product_variation', variation_id, {
-    product: variation.product_name,
-    variation: `${variation.size} / ${variation.color}`,
-    type,
-    movementQty,
-    previousStock: currentStock,
-    newStock,
-    reason: reason.trim()
-  });
-
-  return res.json({
-    message: 'Movimentação registrada com sucesso.',
-    previous_stock: currentStock,
-    new_stock: newStock
-  });
-});
-
-// Stock movement history
-router.get('/stock/history', authenticate, (req, res) => {
-  const { variation_id, limit = 50 } = req.query;
-
-  let sql = `
-    SELECT sm.*, pv.size, pv.color, pv.sku, p.name as product_name, u.name as user_name
-    FROM stock_movements sm
-    JOIN product_variations pv ON sm.variation_id = pv.id
-    JOIN products p ON pv.product_id = p.id
-    JOIN users u ON sm.user_id = u.id
-    WHERE 1=1
-  `;
-  const params = [];
-
-  if (variation_id) {
-    sql += ' AND sm.variation_id = ?';
-    params.push(variation_id);
+  for (const v of variations)
+    for (const field of ["sku", "barcode"])
+      if (
+        v[field] &&
+        get(`SELECT id FROM product_variations WHERE ${field}=? AND id!=?`, [
+          v[field],
+          v.id,
+        ])
+      )
+        throw new Error(
+          `${field === "sku" ? "SKU" : "Código de barras"} já utilizado.`,
+        );
+  const codes = new Set();
+  for (const v of variations)
+    for (const field of ["sku", "barcode"])
+      if (v[field]) {
+        const code = field + "|" + v[field];
+        if (codes.has(code)) throw new Error("Códigos repetidos na grade.");
+        codes.add(code);
+      }
+  return {
+    name,
+    description,
+    sale,
+    cost,
+    promo,
+    category,
+    reference: body.reference ? text(body.reference, "Referência", 100) : null,
+    images: JSON.stringify(imageURLs(body.images ?? [])),
+    showcase: body.is_showcase ? 1 : 0,
+    variations,
+  };
+}
+router.get("/categories", authenticate, (req, res) =>
+  res.json(query("SELECT * FROM categories ORDER BY name")),
+);
+router.post("/categories", authenticate, requireRole("admin"), (req, res) => {
+  try {
+    const name = text(req.body.name, "Categoria", 100),
+      id = randomUUID();
+    run(
+      "INSERT INTO categories(id,name,description,created_at) VALUES (?,?,?,?)",
+      [id, name, "", new Date().toISOString()],
+    );
+    res.status(201).json({ id, name });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
-
-  sql += ' ORDER BY sm.created_at DESC LIMIT ?';
-  params.push(parseInt(limit, 10));
-
-  const history = query(sql, params);
-  return res.json(history);
 });
-
+router.post(
+  "/images/upload",
+  authenticate,
+  requireRole("admin"),
+  (req, res) => {
+    try {
+      const raw = req.body.data;
+      if (typeof raw !== "string") throw new Error("Foto inválida.");
+      const match = raw.match(
+        /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/,
+      );
+      if (!match) throw new Error("Use JPEG, PNG ou WebP.");
+      const buffer = Buffer.from(match[2], "base64");
+      if (!buffer.length || buffer.length > 5 * 1024 * 1024)
+        throw new Error("A foto deve ter até 5 MB.");
+      const valid =
+        match[1] === "jpeg"
+          ? buffer.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
+          : match[1] === "png"
+            ? buffer
+                .subarray(0, 8)
+                .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+            : buffer.toString("ascii", 0, 4) === "RIFF" &&
+              buffer.toString("ascii", 8, 12) === "WEBP";
+      if (!valid) throw new Error("Conteúdo da foto inválido.");
+      const dir = path.join(path.dirname(getDbPath()), "uploads");
+      fs.mkdirSync(dir, { recursive: true });
+      const name =
+        randomUUID() + "." + (match[1] === "jpeg" ? "jpg" : match[1]);
+      fs.writeFileSync(path.join(dir, name), buffer, { flag: "wx" });
+      res.status(201).json({ url: "/uploads/" + name });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  },
+);
+router.get("/stock/history", authenticate, (req, res) => {
+  let sql =
+    "SELECT sm.*,p.name AS product_name,pv.size,pv.color,u.name AS user_name FROM stock_movements sm JOIN product_variations pv ON pv.id=sm.variation_id JOIN products p ON p.id=pv.product_id JOIN users u ON u.id=sm.user_id";
+  const params = [];
+  if (req.query.variation_id) {
+    sql += " WHERE sm.variation_id=?";
+    params.push(req.query.variation_id);
+  }
+  res.json(query(sql + " ORDER BY sm.created_at DESC LIMIT 200", params));
+});
+router.post(
+  "/stock/movement",
+  authenticate,
+  requireRole("admin"),
+  (req, res) => {
+    try {
+      const { variation_id, type } = req.body,
+        reason = text(req.body.reason, "Motivo", 500),
+        qty = integer(
+          req.body.quantity,
+          "Quantidade",
+          type === "adjust" ? 0 : 1,
+        );
+      if (!["in", "out", "adjust"].includes(type))
+        throw new Error("Movimento inválido.");
+      const result = transaction(() => {
+        const v = get("SELECT stock FROM product_variations WHERE id=?", [
+          variation_id,
+        ]);
+        if (!v) throw new Error("Peça inexistente.");
+        const delta =
+          type === "adjust" ? qty - v.stock : type === "out" ? -qty : qty;
+        stock(variation_id, delta, type, reason, null, req.user.id);
+        logAudit(req.user.id, "STOCK_MOVEMENT", "variation", variation_id, {
+          delta,
+          reason,
+        });
+        return { previous_stock: v.stock, new_stock: v.stock + delta };
+      });
+      res.status(201).json(result);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  },
+);
+router.get("/", authenticate, (req, res) => {
+  let sql =
+    "SELECT p.*,c.name AS category_name FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE 1=1";
+  const params = [];
+  if (req.query.status && req.query.status !== "all") {
+    sql += " AND p.status=?";
+    params.push(req.query.status);
+  }
+  if (req.query.search) {
+    sql += " AND (p.name LIKE ? OR p.reference LIKE ?)";
+    params.push("%" + req.query.search + "%", "%" + req.query.search + "%");
+  }
+  res.json(
+    query(sql + " ORDER BY p.name", params).map((p) => view(p, req.user.role)),
+  );
+});
+router.get("/:id", authenticate, (req, res) => {
+  const p = get("SELECT * FROM products WHERE id=?", [req.params.id]);
+  return p
+    ? res.json(view(p, req.user.role))
+    : res.status(404).json({ error: "Produto não encontrado." });
+});
+function save(req, res, update) {
+  try {
+    const result = transaction(() => {
+      const existing = update
+        ? get("SELECT * FROM products WHERE id=?", [req.params.id])
+        : null;
+      if (update && !existing) throw new Error("Produto não encontrado.");
+      const p = validateProduct(req.body, existing),
+        id = existing?.id ?? randomUUID(),
+        now = new Date().toISOString();
+      if (existing)
+        run(
+          "UPDATE products SET name=?,description=?,category_id=?,reference=?,cost_price_cents=?,sale_price_cents=?,promo_price_cents=?,images=?,is_showcase=?,updated_at=? WHERE id=?",
+          [
+            p.name,
+            p.description,
+            p.category,
+            p.reference,
+            p.cost,
+            p.sale,
+            p.promo,
+            p.images,
+            p.showcase,
+            now,
+            id,
+          ],
+        );
+      else
+        run(
+          "INSERT INTO products(id,name,description,category_id,reference,cost_price_cents,sale_price_cents,promo_price_cents,images,is_showcase,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,'active',?,?)",
+          [
+            id,
+            p.name,
+            p.description,
+            p.category,
+            p.reference,
+            p.cost,
+            p.sale,
+            p.promo,
+            p.images,
+            p.showcase,
+            now,
+            now,
+          ],
+        );
+      for (const v of p.variations) {
+        if (v.old)
+          run(
+            "UPDATE product_variations SET size=?,color=?,sku=?,barcode=?,min_stock=?,updated_at=? WHERE id=?",
+            [v.size, v.color, v.sku, v.barcode, v.min_stock, now, v.id],
+          );
+        else {
+          run(
+            "INSERT INTO product_variations(id,product_id,size,color,sku,barcode,stock,min_stock,created_at,updated_at) VALUES (?,?,?,?,?,?,0,?,?,?)",
+            [
+              v.id,
+              id,
+              v.size,
+              v.color,
+              v.sku,
+              v.barcode,
+              v.min_stock,
+              now,
+              now,
+            ],
+          );
+          if (v.stock)
+            stock(
+              v.id,
+              v.stock,
+              "in",
+              "Estoque inicial informado",
+              id,
+              req.user.id,
+            );
+        }
+      }
+      logAudit(
+        req.user.id,
+        update ? "UPDATE_PRODUCT" : "CREATE_PRODUCT",
+        "product",
+        id,
+        { name: p.name },
+      );
+      return { id };
+    });
+    res
+      .status(update ? 200 : 201)
+      .json({ ...result, message: "Produto salvo." });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+}
+router.post("/", authenticate, requireRole("admin"), (req, res) =>
+  save(req, res, false),
+);
+router.put("/:id", authenticate, requireRole("admin"), (req, res) =>
+  save(req, res, true),
+);
+router.delete("/:id", authenticate, requireRole("admin"), (req, res) => {
+  const p = get("SELECT id FROM products WHERE id=?", [req.params.id]);
+  if (!p) return res.status(404).json({ error: "Produto não encontrado." });
+  transaction(() => {
+    run(
+      "UPDATE products SET status='archived',is_showcase=0,updated_at=? WHERE id=?",
+      [new Date().toISOString(), p.id],
+    );
+    logAudit(req.user.id, "ARCHIVE_PRODUCT", "product", p.id, {});
+  });
+  res.json({
+    archived: true,
+    message: "Produto arquivado; histórico preservado.",
+  });
+});
 module.exports = router;

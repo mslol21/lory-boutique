@@ -1,67 +1,95 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { query, get, run } = require('../db');
-const { authenticate, requireRole, logAudit } = require('../middleware/auth');
+const { query, get, run, transaction } = require("../db");
+const { authenticate, requireRole, logAudit } = require("../middleware/auth");
 
 // Public Store Settings
-router.get('/settings', (req, res) => {
-  const settingsRows = query('SELECT key, value FROM store_settings');
+router.get("/settings", (req, res) => {
+  const settingsRows = query("SELECT key, value FROM store_settings");
   const settings = {};
-  settingsRows.forEach(r => {
+  settingsRows.forEach((r) => {
     // Only return non-sensitive public settings
     settings[r.key] = r.value;
   });
 
   return res.json({
-    store_name: settings.store_name || 'Lory Boutique',
-    segment: settings.segment || 'Roupas Femininas',
-    address: settings.address || '',
-    whatsapp: settings.whatsapp || '',
-    whatsapp_raw: settings.whatsapp_raw || '',
-    instagram: settings.instagram || '',
-    instagram_handle: settings.instagram_handle || '',
-    operation_model: settings.operation_model || 'Retirada na loja física',
-    cnpj: settings.cnpj || '',
-    cep: settings.cep || '',
-    business_hours: settings.business_hours || '',
-    demo_mode: settings.demo_mode === '1'
+    store_name: settings.store_name || "Lory Boutique",
+    segment: settings.segment || "Roupas Femininas",
+    address: settings.address || "",
+    whatsapp: settings.whatsapp || "",
+    whatsapp_raw: settings.whatsapp_raw || "",
+    instagram: settings.instagram || "",
+    instagram_handle: settings.instagram_handle || "",
+    operation_model: settings.operation_model || "Retirada na loja física",
+    cnpj: settings.cnpj || "",
+    cep: settings.cep || "",
+    business_hours: settings.business_hours || "",
+    demo_mode: settings.demo_mode === "1",
   });
 });
 
 // Update Store Settings (admin only)
-router.put('/settings', authenticate, requireRole('admin'), (req, res) => {
+router.put("/settings", authenticate, requireRole("admin"), (req, res) => {
   const allowedKeys = [
-    'store_name', 'segment', 'address', 'whatsapp', 'whatsapp_raw',
-    'instagram', 'instagram_handle', 'operation_model', 'cnpj', 'cep',
-    'business_hours', 'demo_mode'
+    "store_name",
+    "segment",
+    "address",
+    "whatsapp",
+    "whatsapp_raw",
+    "instagram",
+    "instagram_handle",
+    "operation_model",
+    "cnpj",
+    "cep",
+    "business_hours",
   ];
 
-  const updates = req.body;
-  for (const [key, val] of Object.entries(updates)) {
-    if (allowedKeys.includes(key)) {
-      const stringVal = val === null || val === undefined ? '' : String(val);
-      const existing = get('SELECT key FROM store_settings WHERE key = ?', [key]);
-      if (existing) {
-        run('UPDATE store_settings SET value = ? WHERE key = ?', [stringVal, key]);
-      } else {
-        run('INSERT INTO store_settings (key, value) VALUES (?, ?)', [key, stringVal]);
-      }
-    }
+  try {
+    const updates = Object.entries(req.body)
+      .filter(([key]) => allowedKeys.includes(key))
+      .map(([key, val]) => {
+        const value = val == null ? "" : String(val);
+        if (value.length > 2000) throw new Error("Configuração muito longa.");
+        if (
+          key === "instagram" &&
+          value &&
+          !/^https:\/\/(www\.)?instagram\.com\//.test(value)
+        )
+          throw new Error("Use um endereço HTTPS do Instagram.");
+        if (key === "whatsapp_raw" && !/^\d{10,15}$/.test(value))
+          throw new Error("WhatsApp inválido.");
+        return [key, value];
+      });
+    transaction(() => {
+      for (const [key, value] of updates)
+        run(
+          "INSERT INTO store_settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+          [key, value],
+        );
+      logAudit(
+        req.user.id,
+        "UPDATE_SETTINGS",
+        "store_settings",
+        null,
+        Object.fromEntries(updates),
+      );
+    });
+    return res.json({ message: "Configurações atualizadas." });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
-
-  logAudit(req.user.id, 'UPDATE_SETTINGS', 'store_settings', null, updates);
-
-  return res.json({ message: 'Configurações atualizadas com sucesso.' });
 });
 
 // Public Showcase Categories
-router.get('/categories', (req, res) => {
-  const cats = query('SELECT id, name, description FROM categories ORDER BY name ASC');
+router.get("/categories", (req, res) => {
+  const cats = query(
+    "SELECT id, name, description FROM categories ORDER BY name ASC",
+  );
   return res.json(cats);
 });
 
 // Public Showcase Products (Only active & is_showcase=1)
-router.get('/products', (req, res) => {
+router.get("/products", (req, res) => {
   const { category_id, search, min_price, max_price, size, color } = req.query;
 
   let sql = `
@@ -75,49 +103,53 @@ router.get('/products', (req, res) => {
   const params = [];
 
   if (category_id) {
-    sql += ' AND p.category_id = ?';
+    sql += " AND p.category_id = ?";
     params.push(category_id);
   }
 
   if (search) {
-    sql += ' AND (p.name LIKE ? OR p.description LIKE ? OR p.reference LIKE ?)';
+    sql += " AND (p.name LIKE ? OR p.description LIKE ? OR p.reference LIKE ?)";
     const wildcard = `%${search.trim()}%`;
     params.push(wildcard, wildcard, wildcard);
   }
 
   if (min_price) {
-    sql += ' AND COALESCE(p.promo_price_cents, p.sale_price_cents) >= ?';
+    sql += " AND COALESCE(p.promo_price_cents, p.sale_price_cents) >= ?";
     params.push(parseInt(min_price, 10));
   }
 
   if (max_price) {
-    sql += ' AND COALESCE(p.promo_price_cents, p.sale_price_cents) <= ?';
+    sql += " AND COALESCE(p.promo_price_cents, p.sale_price_cents) <= ?";
     params.push(parseInt(max_price, 10));
   }
 
-  sql += ' ORDER BY p.created_at DESC';
+  sql += " ORDER BY p.created_at DESC";
 
   const products = query(sql, params);
 
   // Fetch variations with availability (NOT leaking cost prices)
-  const results = products.map(p => {
-    let variationsSql = 'SELECT id, size, color, stock FROM product_variations WHERE product_id = ?';
+  const results = products.map((p) => {
+    let variationsSql =
+      "SELECT id, size, color, stock FROM product_variations WHERE product_id = ?";
     const varParams = [p.id];
 
     if (size) {
-      variationsSql += ' AND size = ?';
+      variationsSql += " AND size = ?";
       varParams.push(size);
     }
     if (color) {
-      variationsSql += ' AND color = ?';
+      variationsSql += " AND color = ?";
       varParams.push(color);
     }
 
-    variationsSql += ' ORDER BY size ASC, color ASC';
+    variationsSql += " ORDER BY size ASC, color ASC";
     const variations = query(variationsSql, varParams);
 
     const images = p.images ? JSON.parse(p.images) : [];
-    const totalAvailable = variations.reduce((sum, v) => sum + Math.max(0, v.stock), 0);
+    const totalAvailable = variations.reduce(
+      (sum, v) => sum + Math.max(0, v.stock),
+      0,
+    );
 
     return {
       id: p.id,
@@ -129,27 +161,26 @@ router.get('/products', (req, res) => {
       sale_price_cents: p.sale_price_cents,
       promo_price_cents: p.promo_price_cents,
       images,
-      variations: variations.map(v => ({
+      variations: variations.map((v) => ({
         id: v.id,
         size: v.size,
         color: v.color,
         available: v.stock > 0,
-        stock_units: v.stock // For informational badge
+        stock_units: v.stock, // For informational badge
       })),
-      is_available: totalAvailable > 0
+      is_available: totalAvailable > 0,
     };
   });
 
   // If size or color filter applied, only keep products that have matching variations
-  const filtered = (size || color)
-    ? results.filter(p => p.variations.length > 0)
-    : results;
+  const filtered =
+    size || color ? results.filter((p) => p.variations.length > 0) : results;
 
   return res.json(filtered);
 });
 
 // Public Product Detail
-router.get('/products/:id', (req, res) => {
+router.get("/products/:id", (req, res) => {
   const { id } = req.params;
 
   const p = get(
@@ -159,20 +190,25 @@ router.get('/products/:id', (req, res) => {
      FROM products p
      LEFT JOIN categories c ON p.category_id = c.id
      WHERE p.id = ? AND p.status = 'active' AND p.is_showcase = 1`,
-    [id]
+    [id],
   );
 
   if (!p) {
-    return res.status(404).json({ error: 'Produto não encontrado na vitrine.' });
+    return res
+      .status(404)
+      .json({ error: "Produto não encontrado na vitrine." });
   }
 
   const variations = query(
-    'SELECT id, size, color, stock FROM product_variations WHERE product_id = ? ORDER BY size ASC, color ASC',
-    [p.id]
+    "SELECT id, size, color, stock FROM product_variations WHERE product_id = ? ORDER BY size ASC, color ASC",
+    [p.id],
   );
 
   const images = p.images ? JSON.parse(p.images) : [];
-  const totalAvailable = variations.reduce((sum, v) => sum + Math.max(0, v.stock), 0);
+  const totalAvailable = variations.reduce(
+    (sum, v) => sum + Math.max(0, v.stock),
+    0,
+  );
 
   return res.json({
     id: p.id,
@@ -184,14 +220,14 @@ router.get('/products/:id', (req, res) => {
     sale_price_cents: p.sale_price_cents,
     promo_price_cents: p.promo_price_cents,
     images,
-    variations: variations.map(v => ({
+    variations: variations.map((v) => ({
       id: v.id,
       size: v.size,
       color: v.color,
       available: v.stock > 0,
-      stock_units: v.stock
+      stock_units: v.stock,
     })),
-    is_available: totalAvailable > 0
+    is_available: totalAvailable > 0,
   });
 });
 

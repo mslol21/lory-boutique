@@ -1,7 +1,8 @@
-import React from 'react';
-import { Sale, StoreSettings } from '../types';
-import { formatBRL, formatDateBR } from '../services/api';
-import { Printer, X, Download } from 'lucide-react';
+import { Dialog } from "./Dialog";
+import React from "react";
+import { Sale, StoreSettings } from "../types";
+import { formatBRL, formatDateBR } from "../services/api";
+import { Printer, X, Download } from "lucide-react";
 
 interface ReceiptProps {
   sale: Sale;
@@ -9,23 +10,32 @@ interface ReceiptProps {
   onClose: () => void;
 }
 
-export const Receipt: React.FC<ReceiptProps> = ({ sale, settings, onClose }) => {
+export const Receipt: React.FC<ReceiptProps> = ({
+  sale,
+  settings,
+  onClose,
+}) => {
   const handlePrint = () => {
     window.print();
   };
 
   const getPaymentName = (method: string) => {
     switch (method) {
-      case 'money': return 'Dinheiro';
-      case 'pix': return 'Pix';
-      case 'debit': return 'Cartão de Débito';
-      case 'credit': return 'Cartão de Crédito';
-      default: return method;
+      case "money":
+        return "Dinheiro";
+      case "pix":
+        return "Pix";
+      case "debit":
+        return "Cartão de Débito";
+      case "credit":
+        return "Cartão de Crédito";
+      default:
+        return method;
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+    <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-100 animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Toolbar (hidden when printing) */}
         <div className="bg-rose-50 px-5 py-3 border-b border-rose-100 flex items-center justify-between print:hidden">
@@ -41,6 +51,8 @@ export const Receipt: React.FC<ReceiptProps> = ({ sale, settings, onClose }) => 
               Imprimir
             </button>
             <button
+              data-dialog-close
+              aria-label="Fechar janela"
               onClick={onClose}
               className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
             >
@@ -49,19 +61,35 @@ export const Receipt: React.FC<ReceiptProps> = ({ sale, settings, onClose }) => 
           </div>
         </div>
 
+        {sale.status !== "completed" && (
+          <p className="p-3 text-red-800">
+            Situação da venda:{" "}
+            {sale.status === "cancelled"
+              ? "Cancelada"
+              : sale.status === "returned_full"
+                ? "Devolvida integralmente"
+                : "Devolvida parcialmente"}
+          </p>
+        )}
         {/* Printable Area */}
-        <div id="printable-receipt" className="p-6 font-mono text-xs text-gray-800 bg-white">
+        <div
+          id="printable-receipt"
+          className="p-6 font-mono text-xs text-gray-800 bg-white"
+        >
           {/* Header */}
           <div className="text-center pb-3 border-b border-dashed border-gray-300">
             <h1 className="text-base font-bold text-gray-900 tracking-wider">
-              {settings?.store_name || 'LORY BOUTIQUE'}
+              {settings?.store_name || "LORY BOUTIQUE"}
             </h1>
-            <p className="text-[10px] text-gray-500 uppercase">Moda Feminina Elegante</p>
+            <p className="text-[10px] text-gray-500 uppercase">
+              Moda Feminina Elegante
+            </p>
             <p className="text-[11px] text-gray-600 mt-1">
-              {settings?.address || 'Rua Hipólito de Camargo, 45 — Guaianases, São Paulo/SP'}
+              {settings?.address ||
+                "Rua Hipólito de Camargo, 45 — Guaianases, São Paulo/SP"}
             </p>
             <p className="text-[11px] text-gray-600">
-              WhatsApp: {settings?.whatsapp || '(11) 94961-1902'}
+              WhatsApp: {settings?.whatsapp || "(11) 94961-1902"}
             </p>
             {settings?.cnpj ? (
               <p className="text-[10px] text-gray-500">CNPJ: {settings.cnpj}</p>
@@ -71,6 +99,13 @@ export const Receipt: React.FC<ReceiptProps> = ({ sale, settings, onClose }) => 
             </div>
           </div>
 
+          {sale.exchange_credit_cents ? (
+            <p className="py-2">
+              Crédito da troca: {formatBRL(sale.exchange_credit_cents)} ·
+              Diferença a pagar:{" "}
+              {formatBRL(sale.total_cents - sale.exchange_credit_cents)}
+            </p>
+          ) : null}
           {/* Sale Metadata */}
           <div className="py-2.5 border-b border-dashed border-gray-300 space-y-1 text-[11px]">
             <div className="flex justify-between">
@@ -83,7 +118,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ sale, settings, onClose }) => 
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Atendente:</span>
-              <span>{sale.seller_name || 'Equipe Lory'}</span>
+              <span>{sale.seller_name || "Equipe Lory"}</span>
             </div>
             {sale.customer_name ? (
               <div className="flex justify-between">
@@ -120,7 +155,9 @@ export const Receipt: React.FC<ReceiptProps> = ({ sale, settings, onClose }) => 
                   <div className="text-[10px] text-gray-500 flex justify-between">
                     <span>
                       Tam: {it.size} | Cor: {it.color}
-                      {it.product_reference ? ` | Ref: ${it.product_reference}` : ''}
+                      {it.product_reference
+                        ? ` | Ref: ${it.product_reference}`
+                        : ""}
                     </span>
                     <span>
                       {it.quantity}x {formatBRL(it.unit_price_cents)}
@@ -150,7 +187,9 @@ export const Receipt: React.FC<ReceiptProps> = ({ sale, settings, onClose }) => 
 
             {/* Payments breakdown */}
             <div className="pt-2 text-[10px] space-y-0.5">
-              <span className="font-semibold text-gray-600 block">FORMA(S) DE PAGAMENTO:</span>
+              <span className="font-semibold text-gray-600 block">
+                FORMA(S) DE PAGAMENTO:
+              </span>
               {sale.payments?.map((p, idx) => (
                 <div key={idx} className="flex justify-between text-gray-700">
                   <span>{getPaymentName(p.payment_method)}:</span>
@@ -168,9 +207,13 @@ export const Receipt: React.FC<ReceiptProps> = ({ sale, settings, onClose }) => 
 
           {/* Footer note */}
           <div className="pt-3 text-center text-[10px] text-gray-500 space-y-1">
-            <p className="font-serif italic text-rose-900 font-semibold">Obrigada por escolher a Lory Boutique!</p>
+            <p className="font-serif italic text-rose-900 font-semibold">
+              Obrigada por escolher a Lory Boutique!
+            </p>
             <p>Trocas com este comprovante em até 7 dias corridos.</p>
-            <p className="text-[9px] text-gray-400">Instagram: @loryboutiquel</p>
+            <p className="text-[9px] text-gray-400">
+              Instagram: @loryboutiquel
+            </p>
           </div>
         </div>
 
@@ -184,6 +227,6 @@ export const Receipt: React.FC<ReceiptProps> = ({ sale, settings, onClose }) => 
           </button>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 };

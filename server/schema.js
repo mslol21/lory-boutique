@@ -1,4 +1,4 @@
-const { run, query } = require('./db');
+const { run, query } = require("./db");
 
 function createSchema() {
   const tables = [
@@ -7,6 +7,7 @@ function createSchema() {
       name TEXT NOT NULL,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      token_version INTEGER NOT NULL DEFAULT 0,
       role TEXT NOT NULL CHECK(role IN ('admin', 'attendant')),
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL
@@ -43,8 +44,8 @@ function createSchema() {
       color TEXT NOT NULL,
       sku TEXT UNIQUE,
       barcode TEXT,
-      stock INTEGER NOT NULL DEFAULT 0,
-      min_stock INTEGER NOT NULL DEFAULT 1,
+      stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
+      min_stock INTEGER NOT NULL DEFAULT 1 CHECK(min_stock >= 0),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
@@ -123,7 +124,8 @@ function createSchema() {
       unit_price_cents INTEGER NOT NULL,
       quantity INTEGER NOT NULL,
       total_cents INTEGER NOT NULL,
-      returned_quantity INTEGER NOT NULL DEFAULT 0,
+      returned_quantity INTEGER NOT NULL DEFAULT 0 CHECK(returned_quantity >= 0 AND returned_quantity <= quantity),
+      net_total_cents INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY(sale_id) REFERENCES sales(id),
       FOREIGN KEY(variation_id) REFERENCES product_variations(id)
     );`,
@@ -174,12 +176,38 @@ function createSchema() {
     `CREATE TABLE IF NOT EXISTS store_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
-    );`
+    );`,
   ];
 
   for (const tableSql of tables) {
     run(tableSql);
   }
+
+  const addColumn = (table, name, definition) => {
+    if (!query(`PRAGMA table_info(${table})`).some((c) => c.name === name))
+      run(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+  };
+  addColumn("users", "token_version", "INTEGER NOT NULL DEFAULT 0");
+  addColumn("sale_items", "net_total_cents", "INTEGER NOT NULL DEFAULT 0");
+  addColumn("sales", "request_hash", "TEXT");
+  addColumn("sales", "exchange_credit_cents", "INTEGER NOT NULL DEFAULT 0");
+  addColumn("returns", "idempotency_key", "TEXT");
+  addColumn("returns", "request_hash", "TEXT");
+  addColumn("returns", "exchange_sale_id", "TEXT REFERENCES sales(id)");
+  run(`CREATE TABLE IF NOT EXISTS financial_entries (
+    id TEXT PRIMARY KEY, register_id TEXT NOT NULL REFERENCES cash_registers(id),
+    sale_id TEXT NOT NULL REFERENCES sales(id), return_id TEXT REFERENCES returns(id),
+    kind TEXT NOT NULL CHECK(kind IN ('sale','refund','cancel','exchange_credit')),
+    payment_method TEXT NOT NULL CHECK(payment_method IN ('money','pix','debit','credit')),
+    amount_cents INTEGER NOT NULL CHECK(typeof(amount_cents)='integer'),
+    created_at TEXT NOT NULL
+  )`);
+  run(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_returns_key ON returns(idempotency_key) WHERE idempotency_key IS NOT NULL",
+  );
+  run(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_one_open_cash ON cash_registers(status) WHERE status='open'",
+  );
 
   // Create indexes for high performance
   const indexes = [
@@ -189,7 +217,7 @@ function createSchema() {
     `CREATE INDEX IF NOT EXISTS idx_sales_code ON sales(code);`,
     `CREATE INDEX IF NOT EXISTS idx_sales_created ON sales(created_at);`,
     `CREATE INDEX IF NOT EXISTS idx_sales_register ON sales(register_id);`,
-    `CREATE INDEX IF NOT EXISTS idx_stock_mov_var ON stock_movements(variation_id);`
+    `CREATE INDEX IF NOT EXISTS idx_stock_mov_var ON stock_movements(variation_id);`,
   ];
 
   for (const idxSql of indexes) {

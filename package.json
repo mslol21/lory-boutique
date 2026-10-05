@@ -8,7 +8,11 @@
     "server": "node server/index.js",
     "client": "npm --prefix client run dev",
     "build": "npm --prefix client run build",
-    "test": "node server/test-suite.js"
+    "test": "node server/test-suite.js",
+    "admin:create": "node server/create-admin.js",
+    "backup": "node server/backup.js",
+    "setup": "node server/setup.js",
+    "test:ui": "node server/ui-test-suite.js"
   },
   "keywords": [
     "boutique",
@@ -25,7 +29,12 @@
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "sql.js": "^1.14.2",
     "uuid": "^14.0.2"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
   }
 }
