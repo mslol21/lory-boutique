@@ -36,6 +36,11 @@ async function initDB() {
       });
       // Supabase pooler connections use TLS; local PostgreSQL remains usable for tests.
       const url = new URL(process.env.DATABASE_URL);
+      if (!["postgres:", "postgresql:"].includes(url.protocol)) {
+        const error = new Error("DATABASE_URL deve ser uma URI PostgreSQL.");
+        error.code = "DATABASE_URL_INVALID";
+        throw error;
+      }
       const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
       if (!local && url.searchParams.get("sslmode") === "disable")
         throw new Error("A conexão remota exige TLS.");

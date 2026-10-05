@@ -1,4 +1,5 @@
 require("dotenv").config();
+const { startupError } = require("../server/startup-error");
 module.exports = async function handler(req, res) {
   try {
     if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL ausente");
@@ -16,8 +17,7 @@ module.exports = async function handler(req, res) {
     res.setHeader("Content-Type", "application/json");
     res.end(
       JSON.stringify({
-        error:
-          "Sistema não configurado. Confira DATABASE_URL, JWT_SECRET e os scripts SQL no servidor.",
+        error: startupError(error),
       }),
     );
   }
