@@ -1,0 +1,31 @@
+{
+  "name": "lory-boutique",
+  "version": "1.0.0",
+  "description": "Sistema de Gestão de Vendas PDV e Vitrine Online - Lory Boutique",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "server": "node server/index.js",
+    "client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "test": "node server/test-suite.js"
+  },
+  "keywords": [
+    "boutique",
+    "pdv",
+    "gestao-vendas",
+    "roupas-femininas",
+    "vitrine"
+  ],
+  "author": "Lory Boutique",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.5",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "sql.js": "^1.14.2",
+    "uuid": "^14.0.2"
+  }
+}
