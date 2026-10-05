@@ -1,10 +1,11 @@
 const { get, query } = require("./db");
-function summary(id) {
-  const reg = get("SELECT * FROM cash_registers WHERE id=?", [id]);
-  const movements = query("SELECT * FROM cash_movements WHERE register_id=?", [
-    id,
-  ]);
-  const payments = query(
+async function summary(id) {
+  const reg = await get("SELECT * FROM cash_registers WHERE id=?", [id]);
+  const movements = await query(
+    "SELECT * FROM cash_movements WHERE register_id=?",
+    [id],
+  );
+  const payments = await query(
     "SELECT payment_method, SUM(amount_cents) AS amount FROM financial_entries WHERE register_id=? GROUP BY payment_method",
     [id],
   );
@@ -17,13 +18,17 @@ function summary(id) {
     bleed = movements
       .filter((m) => m.type === "bleed")
       .reduce((s, m) => s + m.amount_cents, 0);
-  const changes = get(
-    "SELECT COALESCE(SUM(change_cents),0) AS n FROM sales WHERE register_id=?",
-    [id],
+  const changes = (
+    await get(
+      "SELECT COALESCE(SUM(change_cents),0) AS n FROM sales WHERE register_id=?",
+      [id],
+    )
   ).n;
-  const count = get(
-    "SELECT COUNT(*) AS n FROM sales WHERE register_id=? AND status!='cancelled'",
-    [id],
+  const count = (
+    await get(
+      "SELECT COUNT(*) AS n FROM sales WHERE register_id=? AND status!='cancelled'",
+      [id],
+    )
   ).n;
   return {
     initial_amount_cents: reg.initial_amount_cents,
@@ -41,4 +46,6 @@ function summary(id) {
     gross_revenue_cents: payments.reduce((s, p) => s + p.amount, 0),
   };
 }
-module.exports = { summary };
+module.exports = {
+  summary,
+};

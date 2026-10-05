@@ -44,6 +44,7 @@ const React = require(client + "/node_modules/react");
 const { act } = React;
 const { createRoot } = require(client + "/node_modules/react-dom/client");
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lory-ui-"));
+process.env.DATABASE_URL = "";
 process.env.DB_PATH = path.join(dir, "test.db");
 process.env.JWT_SECRET = crypto.randomBytes(48).toString("hex");
 process.env.ADMIN_PASSWORD = crypto.randomBytes(24).toString("hex");
@@ -69,8 +70,8 @@ const nativeFetch = global.fetch;
       await new Promise((r) => setTimeout(r, 100));
     });
   };
-  const check = (name, fn) => {
-    fn();
+  const check = async (name, fn) => {
+    await fn();
     checks++;
     console.log("✓", name);
   };
@@ -86,7 +87,7 @@ const nativeFetch = global.fetch;
       }),
     );
     await wait();
-    check("Vitrine vazia sem mercadoria demonstrativa", () => {
+    await check("Vitrine vazia sem mercadoria demonstrativa", () => {
       assert.match(document.body.textContent, /Ainda não há peças/);
       assert.doesNotMatch(document.body.textContent, /Vestido Midi Canelado/);
     });
@@ -98,7 +99,7 @@ const nativeFetch = global.fetch;
         onLoginSuccess: () => {},
       }),
     );
-    check("Login não expõe acesso rápido", () => {
+    await check("Login não expõe acesso rápido", () => {
       assert.doesNotMatch(
         document.body.textContent,
         /Acesso Rápido|admin123|atendente123/,
@@ -129,7 +130,7 @@ const nativeFetch = global.fetch;
     );
     assert.ok(button, "Botão para cadastrar produto");
     await act(async () => button.click());
-    check("Cadastro novo inicia sem foto e sem estoque fictício", () => {
+    await check("Cadastro novo inicia sem foto e sem estoque fictício", () => {
       assert.equal(document.querySelectorAll("img").length, 0);
       const nums = [
         ...document.querySelectorAll('[role="dialog"] input[type="number"]'),
@@ -165,17 +166,20 @@ const nativeFetch = global.fetch;
     );
     assert.ok(edit);
     await act(async () => edit.click());
-    check("Edição abre a peça cadastrada e protege estoque direto", () => {
-      assert.ok(
-        [...document.querySelectorAll("input")].some(
-          (i) => i.value === "Peça criada apenas no teste",
-        ),
-      );
-      const stock = [...document.querySelectorAll('input[type="number"]')].find(
-        (i) => i.value === "2",
-      );
-      assert.ok(stock?.disabled);
-    });
+    await check(
+      "Edição abre a peça cadastrada e protege estoque direto",
+      () => {
+        assert.ok(
+          [...document.querySelectorAll("input")].some(
+            (i) => i.value === "Peça criada apenas no teste",
+          ),
+        );
+        const stock = [
+          ...document.querySelectorAll('input[type="number"]'),
+        ].find((i) => i.value === "2");
+        assert.ok(stock?.disabled);
+      },
+    );
     const cash = await nativeFetch(base + "/api/cash/open", {
       method: "POST",
       headers: {
@@ -186,7 +190,7 @@ const nativeFetch = global.fetch;
     });
     assert.equal(cash.status, 201);
     const { POS } = require(client + "/src/components/POS.tsx");
-    const variation = get(
+    const variation = await get(
       "SELECT * FROM product_variations WHERE product_id=?",
       [create.id],
     );
@@ -233,7 +237,7 @@ const nativeFetch = global.fetch;
       }),
     );
     await wait();
-    check("PDV restaura operação pendente após recarregar", () =>
+    await check("PDV restaura operação pendente após recarregar", () =>
       assert.match(document.body.textContent, /venda aguardando confirmação/),
     );
     const collect = [...document.querySelectorAll("button")].find((b) =>
@@ -252,17 +256,20 @@ const nativeFetch = global.fetch;
       await new Promise((r) => setTimeout(r, 100));
     });
     await wait();
-    check("Retentativa no PDV não duplica venda e carrega comprovante", () => {
-      assert.equal(get("SELECT COUNT(*) AS n FROM sales").n, 1);
-      assert.match(document.body.textContent, /DOCUMENTO NÃO FISCAL/);
-    });
+    await check(
+      "Retentativa no PDV não duplica venda e carrega comprovante",
+      async () => {
+        assert.equal((await get("SELECT COUNT(*) AS n FROM sales")).n, 1);
+        assert.match(document.body.textContent, /DOCUMENTO NÃO FISCAL/);
+      },
+    );
     console.log(
       `\n${checks} testes de componentes aprovados em DOM simulado (sem validação visual).`,
     );
   } finally {
     await act(async () => root.unmount());
     await new Promise((r) => server.close(r));
-    closeDB();
+    await closeDB();
     fs.rmSync(dir, { recursive: true, force: true });
     dom.window.close();
     global.fetch = nativeFetch;

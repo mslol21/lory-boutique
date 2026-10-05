@@ -69,3 +69,62 @@ npm --prefix client run lint
 A suíte cria exclusivamente um banco temporário, credenciais aleatórias e fixtures efêmeras; depois remove tudo. Nunca popula o banco da loja. Verifica inicialização vazia, permissões, última unidade simultânea, centavos, descontos, troco, devoluções, trocas, retentativas e leitura da venda confirmada por outro processo.
 
 Antes da operação real, confira as informações comerciais, configure HTTPS e backup externo e faça um teste no balcão com os equipamentos utilizados. Nenhuma integração fiscal ou de adquirente está incluída.
+
+## Publicação online: Vercel + Supabase PostgreSQL
+
+O frontend usa `/api` no mesmo domínio. A API Express agora é publicada pela
+função `api/index.js`; ela acessa diretamente o PostgreSQL via `pg` e mantém as
+mesmas contas de usuário/senha do PDV. Não usa contas do painel **Supabase Auth**.
+As chaves públicas do Supabase não substituem a conexão PostgreSQL do servidor.
+
+1. No SQL Editor do projeto `gnvvntwhoejliemcaqsf`, execute
+   `supabase/sql/01_initial.sql` **uma única vez** em banco novo. Caso já tenha
+   executado o arquivo `Lory_Boutique_Supabase.sql`, pule esta etapa.
+2. Execute `supabase/sql/02_online.sql`. Esse complemento pode ser repetido:
+   adiciona fotos persistentes e o controle de tentativas de login, sem inserir
+   produtos ou contas de exemplo.
+3. Na Vercel, use a raiz do repositório (Root Directory vazio), Node.js 24,
+   Framework **Other**, instalação `npm ci && npm --prefix client ci`, build
+   `npm run build` e output `client/dist`. O arquivo `vercel.json` configura as
+   rotas para `/api`, `/uploads` e o frontend.
+4. Em **Settings → Environment Variables**, configure somente no ambiente
+   **Production**:
+
+   | Variável         | Valor                                                                                                                                                                                                     |
+   | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `DATABASE_URL`   | Supabase **Connect → Transaction pooler → URI**, substituindo o marcador da senha pela senha do banco; codifique caracteres especiais da senha para URL. Use o endereço do pooler exibido no seu projeto. |
+   | `JWT_SECRET`     | Segredo aleatório com pelo menos 32 caracteres. Gere no terminal com `node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"`.                                                     |
+   | `ADMIN_USERNAME` | `admin` (ou outro usuário escolhido).                                                                                                                                                                     |
+   | `ADMIN_PASSWORD` | Sua senha inicial, com pelo menos 12 caracteres.                                                                                                                                                          |
+   | `ADMIN_NAME`     | `Administrador Lory` (opcional).                                                                                                                                                                          |
+
+   Essas variáveis são privadas do servidor. **Nunca** coloque prefixos
+   `VITE_`/`NEXT_PUBLIC_` nelas, nem salve os valores no GitHub. Preview deve
+   usar outro banco se desejar testar a API sem afetar a loja.
+
+5. Faça **Redeploy**. A primeira inicialização cria o administrador definido
+   no ambiente, se ele ainda não existir, e preserva administradores reais
+   existentes. Alterar `ADMIN_PASSWORD` depois não redefine contas existentes;
+   use a gestão de usuários para mudar senhas.
+6. Confira `https://loryboutique.vercel.app/api/health`. Quando o banco e os
+   scripts estiverem configurados, deve responder
+   `{"status":"ok","database":"postgresql"}`. Depois entre na Área da Equipe
+   com o usuário e a senha definidos no passo 4.
+
+As tabelas operacionais permanecem protegidas por RLS e sem acesso direto para
+`anon` e `authenticated`. A API verifica a conta e o perfil antes de expor dados
+ou alterar a loja. Não resolva erros de acesso liberando custos, clientes,
+caixa ou hashes de senha para a chave pública.
+
+Cada operação comercial usa uma transação no mesmo cliente PostgreSQL. Um lock
+transacional da loja serializa vendas, estoque e caixa entre instâncias da
+Vercel. Respostas de sucesso só são enviadas após o commit. Falhas de conexão
+retornam erro temporário, preservando a chave da operação pendente no PDV.
+Fotos de até 2,5 MB ficam no PostgreSQL, de forma persistente; versões antigas
+SQLite continuam lendo os arquivos de fotos existentes. Para volumes maiores,
+planeje migrar imagens para Storage. Não há preenchimento automático de produtos.
+
+`npm test` usa SQLite temporário e nunca utiliza `DATABASE_URL` real. A CI também
+executa a suíte com um PostgreSQL 17 descartável em localhost através de
+`LORY_TEST_DATABASE_URL`; bancos remotos são rejeitados nesse modo. Para backup
+online, use `pg_dump`/backups do Supabase. `npm run backup` é apenas para SQLite.

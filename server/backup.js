@@ -4,6 +4,10 @@ const { backup } = require("node:sqlite");
 const fs = require("node:fs");
 const path = require("node:path");
 (async () => {
+  if (process.env.DATABASE_URL)
+    throw new Error(
+      "Para PostgreSQL use pg_dump ou os backups do Supabase, não o backup SQLite.",
+    );
   if (!fs.existsSync(getDbPath())) throw new Error("Banco não encontrado.");
   await initDB();
   const dir = path.join(path.dirname(getDbPath()), "backups");
@@ -13,7 +17,7 @@ const path = require("node:path");
     `lory-${new Date().toISOString().replace(/[:.]/g, "-")}.db`,
   );
   await backup(getRawDB(), target);
-  closeDB();
+  await closeDB();
   console.log("Backup criado:", target);
 })().catch((e) => {
   console.error(e.message);

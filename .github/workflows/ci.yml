@@ -7,11 +7,24 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test-password-only
+          POSTGRES_DB: lory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lory_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -20,5 +33,8 @@ jobs:
       - run: npm --prefix client ci
       - run: npm run build
       - run: npm test
+      - run: npm test
+        env:
+          LORY_TEST_DATABASE_URL: postgresql://postgres:test-password-only@127.0.0.1:5432/lory_test
       - run: npm run test:ui
       - run: npm --prefix client run lint

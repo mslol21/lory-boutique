@@ -15,9 +15,12 @@ function filter(req) {
     sql += " AND s.created_at<=?";
     params.push(end);
   }
-  return { sql, params };
+  return {
+    sql,
+    params,
+  };
 }
-router.get("/dashboard", authenticate, (req, res) => {
+router.get("/dashboard", authenticate, async (req, res) => {
   try {
     const period = req.query.period ?? "today";
     if (!["today", "7days", "30days"].includes(period))
@@ -30,7 +33,7 @@ router.get("/dashboard", authenticate, (req, res) => {
     );
     const startISO = dateBounds(start.toISOString().slice(0, 10), today).start,
       endISO = dateBounds(null, today).end;
-    const sales = query(
+    const sales = await query(
       "SELECT * FROM sales WHERE status!='cancelled' AND created_at BETWEEN ? AND ?",
       [startISO, endISO],
     );
@@ -42,7 +45,7 @@ router.get("/dashboard", authenticate, (req, res) => {
       knownCost = false;
     const best = new Map();
     for (const sale of sales) {
-      const items = query("SELECT * FROM sale_items WHERE sale_id=?", [
+      const items = await query("SELECT * FROM sale_items WHERE sale_id=?", [
         sale.id,
       ]);
       let saleNet = 0;
@@ -72,11 +75,11 @@ router.get("/dashboard", authenticate, (req, res) => {
       discounts += sale.discount_cents;
       if (saleNet > 0) count++;
     }
-    const payments = query(
+    const payments = await query(
       "SELECT payment_method,SUM(amount_cents) AS total_cents FROM financial_entries WHERE created_at BETWEEN ? AND ? GROUP BY payment_method",
       [startISO, endISO],
     );
-    const low = query(
+    const low = await query(
       "SELECT pv.id,pv.size,pv.color,pv.stock,pv.min_stock,p.name AS product_name FROM product_variations pv JOIN products p ON p.id=pv.product_id WHERE p.status='active' AND pv.stock<=pv.min_stock ORDER BY pv.stock LIMIT 10",
     );
     res.json({
@@ -95,12 +98,16 @@ router.get("/dashboard", authenticate, (req, res) => {
         .sort((a, b) => b.total_quantity_sold - a.total_quantity_sold)
         .slice(0, 5),
       low_stock_items: low,
-      cash_register_open: !!get(
+      cash_register_open: !!(await get(
         "SELECT id FROM cash_registers WHERE status='open'",
-      ),
+      )),
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(error.databaseFailure ? 503 : 400).json({
+      error: error.databaseFailure
+        ? "Conexão interrompida. Tente novamente com a mesma operação."
+        : error.message,
+    });
   }
 });
 const cell = (value) =>
@@ -118,65 +125,78 @@ function csv(res, name, header, rows) {
   );
 }
 const money = (v) => (v / 100).toFixed(2).replace(".", ",");
-router.get("/export/sales", authenticate, requireRole("admin"), (req, res) => {
-  try {
-    const { sql, params } = filter(req);
-    const rows = query(
-      "SELECT s.*,u.name AS seller_name FROM sales s JOIN users u ON u.id=s.user_id WHERE 1=1" +
-        sql +
-        " ORDER BY s.created_at DESC",
-      params,
-    );
-    csv(
-      res,
-      "vendas_lory_boutique.csv",
-      [
-        "Código",
-        "Data/Hora",
-        "Status",
-        "Atendente",
-        "Cliente",
-        "Telefone",
-        "Subtotal",
-        "Desconto",
-        "Total original",
-        "Devoluções/crédito",
-        "Receita líquida",
-        "Troco",
-      ],
-      rows.map((s) => {
-        const refund = get(
-          "SELECT COALESCE(SUM(return_amount_cents),0) AS n FROM returns WHERE sale_id=?",
-          [s.id],
-        ).n;
-        return [
-          s.code,
-          new Date(s.created_at).toLocaleString("pt-BR", {
-            timeZone: "America/Sao_Paulo",
+router.get(
+  "/export/sales",
+  authenticate,
+  requireRole("admin"),
+  async (req, res) => {
+    try {
+      const { sql, params } = filter(req);
+      const rows = await query(
+        "SELECT s.*,u.name AS seller_name FROM sales s JOIN users u ON u.id=s.user_id WHERE 1=1" +
+          sql +
+          " ORDER BY s.created_at DESC",
+        params,
+      );
+      csv(
+        res,
+        "vendas_lory_boutique.csv",
+        [
+          "Código",
+          "Data/Hora",
+          "Status",
+          "Atendente",
+          "Cliente",
+          "Telefone",
+          "Subtotal",
+          "Desconto",
+          "Total original",
+          "Devoluções/crédito",
+          "Receita líquida",
+          "Troco",
+        ],
+        await Promise.all(
+          rows.map(async (s) => {
+            const refund = (
+              await get(
+                "SELECT COALESCE(SUM(return_amount_cents),0) AS n FROM returns WHERE sale_id=?",
+                [s.id],
+              )
+            ).n;
+            return [
+              s.code,
+              new Date(s.created_at).toLocaleString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+              }),
+              s.status,
+              s.seller_name,
+              s.customer_name,
+              s.customer_phone,
+              money(s.subtotal_cents),
+              money(s.discount_cents),
+              money(s.total_cents),
+              money(refund),
+              money(s.status === "cancelled" ? 0 : s.total_cents - refund),
+              money(s.change_cents),
+            ];
           }),
-          s.status,
-          s.seller_name,
-          s.customer_name,
-          s.customer_phone,
-          money(s.subtotal_cents),
-          money(s.discount_cents),
-          money(s.total_cents),
-          money(refund),
-          money(s.status === "cancelled" ? 0 : s.total_cents - refund),
-          money(s.change_cents),
-        ];
-      }),
-    );
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
+        ),
+      );
+    } catch (error) {
+      res.status(error.databaseFailure ? 503 : 400).json({
+        error: error.databaseFailure
+          ? "Conexão interrompida. Tente novamente com a mesma operação."
+          : error.message,
+      });
+    }
+  },
+);
 router.get(
   "/export/inventory",
   authenticate,
   requireRole("admin"),
-  (req, res) => {
-    const rows = query(
+  async (req, res) => {
+    const rows = await query(
       "SELECT p.*,pv.size,pv.color,pv.sku,pv.barcode,pv.stock,pv.min_stock,c.name AS category_name FROM products p JOIN product_variations pv ON pv.product_id=p.id LEFT JOIN categories c ON c.id=p.category_id WHERE p.status='active' ORDER BY p.name",
     );
     csv(

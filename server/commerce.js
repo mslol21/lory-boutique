@@ -3,12 +3,12 @@ const { get, query, run } = require("./db");
 const { integer, method, todaySP } = require("./validation");
 const hash = (value) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
-function register() {
-  const r = get("SELECT * FROM cash_registers WHERE status='open'");
+async function register() {
+  const r = await get("SELECT * FROM cash_registers WHERE status='open'");
   if (!r) throw new Error("Abra o caixa para registrar esta operação.");
   return r;
 }
-function prepareItems(items) {
+async function prepareItems(items) {
   if (!Array.isArray(items) || !items.length || items.length > 200)
     throw new Error("Selecione as peças.");
   const grouped = new Map();
@@ -21,24 +21,31 @@ function prepareItems(items) {
       integer((grouped.get(item.variation_id) || 0) + qty, "Quantidade", 1),
     );
   }
-  return [...grouped].map(([id, qty]) => {
-    const v = get(
-      `SELECT pv.*,p.name AS product_name,p.reference AS product_reference,p.cost_price_cents,p.sale_price_cents,p.promo_price_cents,p.status FROM product_variations pv JOIN products p ON p.id=pv.product_id WHERE pv.id=?`,
-      [id],
-    );
-    if (!v || v.status !== "active")
-      throw new Error("Produto inexistente ou arquivado.");
-    if (v.stock < qty)
-      throw new Error(
-        `Estoque insuficiente para ${v.product_name} (${v.size}/${v.color}). Disponível: ${v.stock}.`,
+  return await Promise.all(
+    [...grouped].map(async ([id, qty]) => {
+      const v = await get(
+        `SELECT pv.*,p.name AS product_name,p.reference AS product_reference,p.cost_price_cents,p.sale_price_cents,p.promo_price_cents,p.status FROM product_variations pv JOIN products p ON p.id=pv.product_id WHERE pv.id=?`,
+        [id],
       );
-    const price = integer(
-      v.promo_price_cents ?? v.sale_price_cents,
-      "Preço",
-      1,
-    );
-    return { ...v, qty, price, total: integer(price * qty, "Total", 1) };
-  });
+      if (!v || v.status !== "active")
+        throw new Error("Produto inexistente ou arquivado.");
+      if (v.stock < qty)
+        throw new Error(
+          `Estoque insuficiente para ${v.product_name} (${v.size}/${v.color}). Disponível: ${v.stock}.`,
+        );
+      const price = integer(
+        v.promo_price_cents ?? v.sale_price_cents,
+        "Preço",
+        1,
+      );
+      return {
+        ...v,
+        qty,
+        price,
+        total: integer(price * qty, "Total", 1),
+      };
+    }),
+  );
 }
 function validatePayments(payments, total) {
   if (!Array.isArray(payments) || payments.length > 10)
@@ -61,16 +68,16 @@ function validatePayments(payments, total) {
     );
   return change;
 }
-function stock(id, delta, type, reason, reference, user) {
-  const v = get("SELECT stock FROM product_variations WHERE id=?", [id]);
+async function stock(id, delta, type, reason, reference, user) {
+  const v = await get("SELECT stock FROM product_variations WHERE id=?", [id]);
   if (!v) throw new Error("Variação inexistente.");
   const next = integer(v.stock + delta, "Estoque");
-  run("UPDATE product_variations SET stock=?,updated_at=? WHERE id=?", [
+  await run("UPDATE product_variations SET stock=?,updated_at=? WHERE id=?", [
     next,
     new Date().toISOString(),
     id,
   ]);
-  run(
+  await run(
     "INSERT INTO stock_movements(id,variation_id,type,quantity,previous_stock,new_stock,reason,reference_id,user_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
     [
       randomUUID(),
@@ -86,7 +93,7 @@ function stock(id, delta, type, reason, reference, user) {
     ],
   );
 }
-function ledger(reg, sale, returnId, kind, payMethod, amount) {
+async function ledger(reg, sale, returnId, kind, payMethod, amount) {
   method(payMethod);
   if (!Number.isSafeInteger(amount))
     throw new Error("Movimento financeiro inválido.");
@@ -100,7 +107,7 @@ function ledger(reg, sale, returnId, kind, payMethod, amount) {
       "Dinheiro insuficiente no caixa para restituição. Registre um suprimento.",
     );
   if (amount)
-    run(
+    await run(
       "INSERT INTO financial_entries(id,register_id,sale_id,return_id,kind,payment_method,amount_cents,created_at) VALUES (?,?,?,?,?,?,?,?)",
       [
         randomUUID(),
@@ -120,10 +127,13 @@ function netPayments(payments, change) {
     const deduct =
       p.method === "money" ? Math.min(remaining, p.amount_cents) : 0;
     remaining -= deduct;
-    return { ...p, net: p.amount_cents - deduct };
+    return {
+      ...p,
+      net: p.amount_cents - deduct,
+    };
   });
 }
-function createSale({
+async function createSale({
   items,
   payments,
   discount = 0,
@@ -135,7 +145,7 @@ function createSale({
   customerPhone = null,
   credit = 0,
 }) {
-  const prepared = prepareItems(items),
+  const prepared = await prepareItems(items),
     subtotal = integer(
       prepared.reduce((a, v) => a + v.total, 0),
       "Subtotal",
@@ -150,10 +160,13 @@ function createSale({
     now = new Date().toISOString();
   const ym = todaySP().slice(0, 7).replace("-", "");
   const seq =
-    get("SELECT COUNT(*) AS n FROM sales WHERE code LIKE ?", [`LB-${ym}-%`]).n +
-    1;
+    (
+      await get("SELECT COUNT(*) AS n FROM sales WHERE code LIKE ?", [
+        `LB-${ym}-%`,
+      ])
+    ).n + 1;
   const code = `LB-${ym}-${String(seq).padStart(6, "0")}`;
-  run(
+  await run(
     "INSERT INTO sales(id,code,register_id,user_id,customer_name,customer_phone,subtotal_cents,discount_cents,total_cents,change_cents,status,idempotency_key,request_hash,exchange_credit_cents,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,'completed',?,?,?,?)",
     [
       id,
@@ -182,7 +195,7 @@ function createSale({
     );
     const lineDiscount = target - allocated;
     allocated = target;
-    run(
+    await run(
       "INSERT INTO sale_items(id,sale_id,variation_id,product_name,product_reference,size,color,cost_price_cents,unit_price_cents,quantity,total_cents,net_total_cents,returned_quantity) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0)",
       [
         randomUUID(),
@@ -199,15 +212,15 @@ function createSale({
         v.total - lineDiscount,
       ],
     );
-    stock(v.id, -v.qty, "sale", `Venda ${code}`, id, user.id);
+    await stock(v.id, -v.qty, "sale", `Venda ${code}`, id, user.id);
   }
   for (const p of payments)
-    run(
+    await run(
       "INSERT INTO sale_payments(id,sale_id,payment_method,amount_cents) VALUES (?,?,?,?)",
       [randomUUID(), id, p.method, p.amount_cents],
     );
   for (const p of netPayments(payments, change))
-    ledger(reg.id, id, null, "sale", p.method, p.net);
+    await ledger(reg.id, id, null, "sale", p.method, p.net);
   return {
     saleId: id,
     saleCode: code,
@@ -232,18 +245,20 @@ function refundForItem(item, qty) {
   );
   return after - before;
 }
-function saleDetails(id, role) {
-  const s = get(
+async function saleDetails(id, role) {
+  const s = await get(
     "SELECT s.*,u.name AS seller_name FROM sales s JOIN users u ON u.id=s.user_id WHERE s.id=? OR s.code=?",
     [id, id],
   );
   if (!s) return null;
-  const items = query("SELECT * FROM sale_items WHERE sale_id=?", [s.id]);
+  const items = await query("SELECT * FROM sale_items WHERE sale_id=?", [s.id]);
   if (role !== "admin") items.forEach((i) => delete i.cost_price_cents);
   return {
     ...s,
     items,
-    payments: query("SELECT * FROM sale_payments WHERE sale_id=?", [s.id]),
+    payments: await query("SELECT * FROM sale_payments WHERE sale_id=?", [
+      s.id,
+    ]),
   };
 }
 module.exports = {

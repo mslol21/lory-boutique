@@ -8,9 +8,9 @@ const { seedDatabase } = require("./seed");
       "Defina ADMIN_USERNAME, ADMIN_NAME e ADMIN_PASSWORD (mínimo 12 caracteres) no ambiente.",
     );
   await initDB();
-  createSchema();
+  await createSchema();
   await seedDatabase();
-  closeDB();
+  await closeDB();
   console.log(
     "Administrador configurado. Produtos e estoque permanecem vazios.",
   );

@@ -1,16 +1,19 @@
 const bcrypt = require("bcryptjs");
 const { randomUUID } = require("node:crypto");
-const { get, query, run, transaction, getDbPath } = require("./db");
+const { get, query, run, transaction, getDbPath, isPostgres } = require("./db");
 const fs = require("node:fs");
 const path = require("node:path");
-const { backup } = require("node:sqlite");
 const { getRawDB } = require("./db");
 
 // Only store configuration is initialized. No products, sales, stock or demo accounts.
 async function seedDatabase() {
   const demo =
-    get("SELECT value FROM store_settings WHERE key='demo_mode'")?.value ===
-    "1";
+    (await get("SELECT value FROM store_settings WHERE key='demo_mode'"))
+      ?.value === "1";
+  if (demo && isPostgres)
+    throw new Error(
+      "Banco remoto marcado como demonstração. Revise os dados antes de continuar.",
+    );
   if (demo) {
     // One-time conversion of the old, explicitly marked demonstration database.
     const backupPath = path.join(
@@ -18,10 +21,12 @@ async function seedDatabase() {
       "backups",
       `demo-before-cleanup-${Date.now()}.db`,
     );
-    fs.mkdirSync(path.dirname(backupPath), { recursive: true });
-    await backup(getRawDB(), backupPath);
+    fs.mkdirSync(path.dirname(backupPath), {
+      recursive: true,
+    });
+    await require("node:sqlite").backup(getRawDB(), backupPath);
   }
-  transaction(() => {
+  await transaction(async () => {
     if (demo) {
       for (const table of [
         "financial_entries",
@@ -36,8 +41,8 @@ async function seedDatabase() {
         "product_variations",
         "products",
       ])
-        run(`DELETE FROM ${table}`);
-      run("DELETE FROM audit_logs");
+        await run(`DELETE FROM ${table}`);
+      await run("DELETE FROM audit_logs");
     }
     const settings = {
       store_name: "Lory Boutique",
@@ -54,14 +59,14 @@ async function seedDatabase() {
       attendant_discount_percent: "0",
     };
     for (const [key, value] of Object.entries(settings))
-      run("INSERT OR IGNORE INTO store_settings (key,value) VALUES (?,?)", [
-        key,
-        value,
-      ]);
-    run(
+      await run(
+        "INSERT OR IGNORE INTO store_settings (key,value) VALUES (?,?)",
+        [key, value],
+      );
+    await run(
       "INSERT INTO store_settings(key,value) VALUES ('demo_mode','0') ON CONFLICT(key) DO UPDATE SET value='0'",
     );
-    for (const user of query("SELECT * FROM users")) {
+    for (const user of await query("SELECT * FROM users")) {
       const known =
         user.username === "admin"
           ? "admin123"
@@ -69,7 +74,7 @@ async function seedDatabase() {
             ? "atendente123"
             : null;
       if (known && bcrypt.compareSync(known, user.password_hash))
-        run("UPDATE users SET active=0 WHERE id=?", [user.id]);
+        await run("UPDATE users SET active=0 WHERE id=?", [user.id]);
     }
     if (process.env.ADMIN_PASSWORD) {
       if (process.env.ADMIN_PASSWORD.length < 12)
@@ -77,9 +82,11 @@ async function seedDatabase() {
       const username = (process.env.ADMIN_USERNAME || "admin")
         .trim()
         .toLowerCase();
-      const user = get("SELECT * FROM users WHERE username=?", [username]);
+      const user = await get("SELECT * FROM users WHERE username=?", [
+        username,
+      ]);
       if (!user)
-        run(
+        await run(
           "INSERT INTO users(id,name,username,password_hash,role,active,created_at) VALUES (?,?,?,?,?,1,?)",
           [
             randomUUID(),
@@ -95,11 +102,13 @@ async function seedDatabase() {
         user.username === "admin" &&
         bcrypt.compareSync("admin123", user.password_hash)
       )
-        run(
+        await run(
           "UPDATE users SET password_hash=?,active=1,role='admin' WHERE id=?",
           [bcrypt.hashSync(process.env.ADMIN_PASSWORD, 12), user.id],
         );
     }
   });
 }
-module.exports = { seedDatabase };
+module.exports = {
+  seedDatabase,
+};

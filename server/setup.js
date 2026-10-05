@@ -3,7 +3,9 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const dotenv = require("dotenv");
 const envPath = path.join(__dirname, "..", ".env");
-dotenv.config({ path: envPath });
+dotenv.config({
+  path: envPath,
+});
 (async () => {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
     const secret = crypto.randomBytes(48).toString("hex");
@@ -16,7 +18,9 @@ dotenv.config({ path: envPath });
         "\nJWT_SECRET=" +
         secret +
         "\n",
-      { mode: 0o600 },
+      {
+        mode: 0o600,
+      },
     );
     fs.chmodSync(envPath, 0o600);
     process.env.JWT_SECRET = secret;
@@ -25,9 +29,9 @@ dotenv.config({ path: envPath });
   const { createSchema } = require("./schema");
   const { seedDatabase } = require("./seed");
   await initDB();
-  createSchema();
+  await createSchema();
   await seedDatabase();
-  if (!get("SELECT id FROM users WHERE role='admin' AND active=1")) {
+  if (!(await get("SELECT id FROM users WHERE role='admin' AND active=1"))) {
     const supplied = Boolean(process.env.ADMIN_PASSWORD);
     process.env.ADMIN_PASSWORD =
       process.env.ADMIN_PASSWORD ||
@@ -41,7 +45,7 @@ dotenv.config({ path: envPath });
         process.env.ADMIN_PASSWORD,
       );
   } else console.log("Administrador existente preservado.");
-  closeDB();
+  await closeDB();
   console.log(
     "Configuração concluída. Nenhum produto foi criado. Execute npm start.",
   );

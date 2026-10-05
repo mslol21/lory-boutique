@@ -1,6 +1,25 @@
-const { run, query } = require("./db");
-
-function createSchema() {
+const { run, query, isPostgres } = require("./db");
+async function createSchema() {
+  if (isPostgres) {
+    // Production migrations are applied explicitly in the SQL Editor, never on each request.
+    await query(
+      "SELECT request_hash,exchange_credit_cents FROM public.sales LIMIT 0",
+    );
+    await query("SELECT exchange_sale_id FROM public.returns LIMIT 0");
+    await query(
+      "SELECT id,mime_type,content_base64 FROM public.uploaded_images LIMIT 0",
+    );
+    await query(
+      "SELECT id,failures,expires_at FROM public.login_attempts LIMIT 0",
+    );
+    return;
+  }
+  await run(
+    `CREATE TABLE IF NOT EXISTS uploaded_images (id TEXT PRIMARY KEY, mime_type TEXT NOT NULL, content_base64 TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  );
+  await run(
+    `CREATE TABLE IF NOT EXISTS login_attempts (id TEXT PRIMARY KEY, failures INTEGER NOT NULL, expires_at INTEGER NOT NULL)`,
+  );
   const tables = [
     `CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -12,14 +31,12 @@ function createSchema() {
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL
     );`,
-
     `CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       description TEXT,
       created_at TEXT NOT NULL
     );`,
-
     `CREATE TABLE IF NOT EXISTS products (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -36,7 +53,6 @@ function createSchema() {
       updated_at TEXT NOT NULL,
       FOREIGN KEY(category_id) REFERENCES categories(id)
     );`,
-
     `CREATE TABLE IF NOT EXISTS product_variations (
       id TEXT PRIMARY KEY,
       product_id TEXT NOT NULL,
@@ -50,7 +66,6 @@ function createSchema() {
       updated_at TEXT NOT NULL,
       FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
     );`,
-
     `CREATE TABLE IF NOT EXISTS stock_movements (
       id TEXT PRIMARY KEY,
       variation_id TEXT NOT NULL,
@@ -64,7 +79,6 @@ function createSchema() {
       created_at TEXT NOT NULL,
       FOREIGN KEY(variation_id) REFERENCES product_variations(id)
     );`,
-
     `CREATE TABLE IF NOT EXISTS cash_registers (
       id TEXT PRIMARY KEY,
       opened_by TEXT NOT NULL,
@@ -79,7 +93,6 @@ function createSchema() {
       status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'closed')),
       FOREIGN KEY(opened_by) REFERENCES users(id)
     );`,
-
     `CREATE TABLE IF NOT EXISTS cash_movements (
       id TEXT PRIMARY KEY,
       register_id TEXT NOT NULL,
@@ -90,7 +103,6 @@ function createSchema() {
       created_at TEXT NOT NULL,
       FOREIGN KEY(register_id) REFERENCES cash_registers(id)
     );`,
-
     `CREATE TABLE IF NOT EXISTS sales (
       id TEXT PRIMARY KEY,
       code TEXT UNIQUE NOT NULL,
@@ -111,7 +123,6 @@ function createSchema() {
       FOREIGN KEY(register_id) REFERENCES cash_registers(id),
       FOREIGN KEY(user_id) REFERENCES users(id)
     );`,
-
     `CREATE TABLE IF NOT EXISTS sale_items (
       id TEXT PRIMARY KEY,
       sale_id TEXT NOT NULL,
@@ -129,7 +140,6 @@ function createSchema() {
       FOREIGN KEY(sale_id) REFERENCES sales(id),
       FOREIGN KEY(variation_id) REFERENCES product_variations(id)
     );`,
-
     `CREATE TABLE IF NOT EXISTS sale_payments (
       id TEXT PRIMARY KEY,
       sale_id TEXT NOT NULL,
@@ -137,7 +147,6 @@ function createSchema() {
       amount_cents INTEGER NOT NULL,
       FOREIGN KEY(sale_id) REFERENCES sales(id)
     );`,
-
     `CREATE TABLE IF NOT EXISTS returns (
       id TEXT PRIMARY KEY,
       sale_id TEXT NOT NULL,
@@ -150,7 +159,6 @@ function createSchema() {
       created_at TEXT NOT NULL,
       FOREIGN KEY(sale_id) REFERENCES sales(id)
     );`,
-
     `CREATE TABLE IF NOT EXISTS return_items (
       id TEXT PRIMARY KEY,
       return_id TEXT NOT NULL,
@@ -162,7 +170,6 @@ function createSchema() {
       FOREIGN KEY(return_id) REFERENCES returns(id),
       FOREIGN KEY(sale_item_id) REFERENCES sale_items(id)
     );`,
-
     `CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -172,29 +179,36 @@ function createSchema() {
       details TEXT,
       created_at TEXT NOT NULL
     );`,
-
     `CREATE TABLE IF NOT EXISTS store_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );`,
   ];
-
   for (const tableSql of tables) {
-    run(tableSql);
+    await run(tableSql);
   }
-
-  const addColumn = (table, name, definition) => {
-    if (!query(`PRAGMA table_info(${table})`).some((c) => c.name === name))
-      run(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+  const addColumn = async (table, name, definition) => {
+    if (
+      !(await query(`PRAGMA table_info(${table})`)).some((c) => c.name === name)
+    )
+      await run(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
   };
-  addColumn("users", "token_version", "INTEGER NOT NULL DEFAULT 0");
-  addColumn("sale_items", "net_total_cents", "INTEGER NOT NULL DEFAULT 0");
-  addColumn("sales", "request_hash", "TEXT");
-  addColumn("sales", "exchange_credit_cents", "INTEGER NOT NULL DEFAULT 0");
-  addColumn("returns", "idempotency_key", "TEXT");
-  addColumn("returns", "request_hash", "TEXT");
-  addColumn("returns", "exchange_sale_id", "TEXT REFERENCES sales(id)");
-  run(`CREATE TABLE IF NOT EXISTS financial_entries (
+  await addColumn("users", "token_version", "INTEGER NOT NULL DEFAULT 0");
+  await addColumn(
+    "sale_items",
+    "net_total_cents",
+    "INTEGER NOT NULL DEFAULT 0",
+  );
+  await addColumn("sales", "request_hash", "TEXT");
+  await addColumn(
+    "sales",
+    "exchange_credit_cents",
+    "INTEGER NOT NULL DEFAULT 0",
+  );
+  await addColumn("returns", "idempotency_key", "TEXT");
+  await addColumn("returns", "request_hash", "TEXT");
+  await addColumn("returns", "exchange_sale_id", "TEXT REFERENCES sales(id)");
+  await run(`CREATE TABLE IF NOT EXISTS financial_entries (
     id TEXT PRIMARY KEY, register_id TEXT NOT NULL REFERENCES cash_registers(id),
     sale_id TEXT NOT NULL REFERENCES sales(id), return_id TEXT REFERENCES returns(id),
     kind TEXT NOT NULL CHECK(kind IN ('sale','refund','cancel','exchange_credit')),
@@ -202,10 +216,10 @@ function createSchema() {
     amount_cents INTEGER NOT NULL CHECK(typeof(amount_cents)='integer'),
     created_at TEXT NOT NULL
   )`);
-  run(
+  await run(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_returns_key ON returns(idempotency_key) WHERE idempotency_key IS NOT NULL",
   );
-  run(
+  await run(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_one_open_cash ON cash_registers(status) WHERE status='open'",
   );
 
@@ -219,10 +233,10 @@ function createSchema() {
     `CREATE INDEX IF NOT EXISTS idx_sales_register ON sales(register_id);`,
     `CREATE INDEX IF NOT EXISTS idx_stock_mov_var ON stock_movements(variation_id);`,
   ];
-
   for (const idxSql of indexes) {
-    run(idxSql);
+    await run(idxSql);
   }
 }
-
-module.exports = { createSchema };
+module.exports = {
+  createSchema,
+};

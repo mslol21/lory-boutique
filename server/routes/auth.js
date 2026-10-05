@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { randomUUID } = require("node:crypto");
+const { randomUUID, createHmac } = require("node:crypto");
 const { get, query, run, transaction } = require("../db");
 const {
   authenticate,
@@ -11,52 +11,78 @@ const {
   JWT_SECRET,
 } = require("../middleware/auth");
 const { text } = require("../validation");
-const attempts = new Map();
-router.post("/login", (req, res) => {
-  const ip = req.ip;
-  const now = Date.now();
-  for (const [key, value] of attempts)
-    if (value.until < now) attempts.delete(key);
-  const rate = attempts.get(ip) || { count: 0, until: now + 15 * 60 * 1000 };
-  if (rate.count >= 10)
-    return res
-      .status(429)
-      .json({ error: "Muitas tentativas. Tente novamente em 15 minutos." });
+router.post("/login", async (req, res) => {
+  let username, password;
   try {
-    const username = text(req.body.username, "Usuário", 80).toLowerCase();
-    const password = text(req.body.password, "Senha", 200);
-    const user = get("SELECT * FROM users WHERE username=?", [username]);
-    if (
-      !user ||
-      !user.active ||
-      !bcrypt.compareSync(password, user.password_hash)
-    ) {
-      rate.count++;
-      attempts.set(ip, rate);
-      return res.status(401).json({ error: "Usuário ou senha incorretos." });
-    }
-    attempts.delete(ip);
-    const token = jwt.sign(
-      { id: user.id, version: user.token_version },
-      JWT_SECRET,
-      { expiresIn: "12h" },
-    );
-    logAudit(user.id, "LOGIN", "user", user.id, { ip });
-    const { password_hash, ...safe } = user;
-    return res.json({ token, user: safe });
+    username = text(req.body.username, "Usuário", 80).toLowerCase();
+    password = text(req.body.password, "Senha", 200);
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }
+  try {
+    const now = Date.now(),
+      ip = req.ip;
+    const id = createHmac("sha256", JWT_SECRET)
+      .update(ip || "unknown")
+      .digest("hex");
+    const result = await transaction(async () => {
+      await run("DELETE FROM login_attempts WHERE expires_at<?", [now]);
+      const attempt = await get("SELECT * FROM login_attempts WHERE id=?", [
+        id,
+      ]);
+      if (attempt && attempt.failures >= 10)
+        return {
+          status: 429,
+          data: { error: "Muitas tentativas. Tente novamente em 15 minutos." },
+        };
+      const user = await get("SELECT * FROM users WHERE username=?", [
+        username,
+      ]);
+      if (
+        !user ||
+        !user.active ||
+        !bcrypt.compareSync(password, user.password_hash)
+      ) {
+        await run(
+          "INSERT INTO login_attempts(id,failures,expires_at) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET failures=excluded.failures,expires_at=excluded.expires_at",
+          [
+            id,
+            (attempt?.failures ?? 0) + 1,
+            attempt?.expires_at ?? now + 15 * 60 * 1000,
+          ],
+        );
+        return { status: 401, data: { error: "Usuário ou senha incorretos." } };
+      }
+      await run("DELETE FROM login_attempts WHERE id=?", [id]);
+      const token = jwt.sign(
+        { id: user.id, version: user.token_version },
+        JWT_SECRET,
+        { expiresIn: "12h" },
+      );
+      await logAudit(user.id, "LOGIN", "user", user.id, { ip });
+      const { password_hash, ...safe } = user;
+      return { status: 200, data: { token, user: safe } };
+    });
+    return res.status(result.status).json(result.data);
+  } catch (error) {
+    return res
+      .status(503)
+      .json({ error: "Acesso temporariamente indisponível. Tente novamente." });
+  }
 });
-router.get("/me", authenticate, (req, res) => res.json({ user: req.user }));
-router.get("/users", authenticate, requireRole("admin"), (req, res) =>
+router.get("/me", authenticate, (req, res) =>
+  res.json({
+    user: req.user,
+  }),
+);
+router.get("/users", authenticate, requireRole("admin"), async (req, res) =>
   res.json(
-    query(
+    await query(
       "SELECT id,name,username,role,active,created_at FROM users ORDER BY created_at DESC",
     ),
   ),
 );
-router.post("/users", authenticate, requireRole("admin"), (req, res) => {
+router.post("/users", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const name = text(req.body.name, "Nome", 100),
       username = text(req.body.username, "Usuário", 80).toLowerCase(),
@@ -66,10 +92,12 @@ router.post("/users", authenticate, requireRole("admin"), (req, res) => {
     const role = req.body.role;
     if (!["admin", "attendant"].includes(role))
       throw new Error("Perfil inválido.");
-    if (get("SELECT id FROM users WHERE username=?", [username]))
-      return res.status(409).json({ error: "Usuário já existe." });
+    if (await get("SELECT id FROM users WHERE username=?", [username]))
+      return res.status(409).json({
+        error: "Usuário já existe.",
+      });
     const id = randomUUID();
-    run(
+    await run(
       "INSERT INTO users(id,name,username,password_hash,role,active,created_at) VALUES (?,?,?,?,?,1,?)",
       [
         id,
@@ -80,53 +108,82 @@ router.post("/users", authenticate, requireRole("admin"), (req, res) => {
         new Date().toISOString(),
       ],
     );
-    logAudit(req.user.id, "CREATE_USER", "user", id, { name, username, role });
-    return res
-      .status(201)
-      .json({ user: { id, name, username, role, active: 1 } });
+    await logAudit(req.user.id, "CREATE_USER", "user", id, {
+      name,
+      username,
+      role,
+    });
+    return res.status(201).json({
+      user: {
+        id,
+        name,
+        username,
+        role,
+        active: 1,
+      },
+    });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    return res.status(error.databaseFailure ? 503 : 400).json({
+      error: error.databaseFailure
+        ? "Conexão interrompida. Tente novamente com a mesma operação."
+        : error.message,
+    });
   }
 });
-router.put("/users/:id", authenticate, requireRole("admin"), (req, res) => {
-  try {
-    const user = get("SELECT * FROM users WHERE id=?", [req.params.id]);
-    if (!user)
-      return res.status(404).json({ error: "Usuário não encontrado." });
-    const role = req.body.role ?? user.role,
-      active = req.body.active ?? user.active;
-    if (!["admin", "attendant"].includes(role) || ![0, 1].includes(active))
-      throw new Error("Perfil ou status inválido.");
-    if (user.id === req.user.id && (!active || role !== "admin"))
-      throw new Error(
-        "Não é possível remover seu próprio acesso de administrador.",
+router.put(
+  "/users/:id",
+  authenticate,
+  requireRole("admin"),
+  async (req, res) => {
+    try {
+      const user = await get("SELECT * FROM users WHERE id=?", [req.params.id]);
+      if (!user)
+        return res.status(404).json({
+          error: "Usuário não encontrado.",
+        });
+      const role = req.body.role ?? user.role,
+        active = req.body.active ?? user.active;
+      if (!["admin", "attendant"].includes(role) || ![0, 1].includes(active))
+        throw new Error("Perfil ou status inválido.");
+      if (user.id === req.user.id && (!active || role !== "admin"))
+        throw new Error(
+          "Não é possível remover seu próprio acesso de administrador.",
+        );
+      const password = req.body.password;
+      if (
+        password !== undefined &&
+        (typeof password !== "string" || password.length < 12)
+      )
+        throw new Error("A senha deve ter ao menos 12 caracteres.");
+      await transaction(
+        async () =>
+          await run(
+            "UPDATE users SET name=?,role=?,active=?,password_hash=?,token_version=token_version+1 WHERE id=?",
+            [
+              req.body.name ? text(req.body.name, "Nome", 100) : user.name,
+              role,
+              active,
+              password ? bcrypt.hashSync(password, 12) : user.password_hash,
+              user.id,
+            ],
+          ),
       );
-    const password = req.body.password;
-    if (
-      password !== undefined &&
-      (typeof password !== "string" || password.length < 12)
-    )
-      throw new Error("A senha deve ter ao menos 12 caracteres.");
-    transaction(() =>
-      run(
-        "UPDATE users SET name=?,role=?,active=?,password_hash=?,token_version=token_version+1 WHERE id=?",
-        [
-          req.body.name ? text(req.body.name, "Nome", 100) : user.name,
-          role,
-          active,
-          password ? bcrypt.hashSync(password, 12) : user.password_hash,
+      await logAudit(req.user.id, "UPDATE_USER", "user", user.id, {
+        role,
+        active,
+      });
+      return res.json(
+        await get("SELECT id,name,username,role,active FROM users WHERE id=?", [
           user.id,
-        ],
-      ),
-    );
-    logAudit(req.user.id, "UPDATE_USER", "user", user.id, { role, active });
-    return res.json(
-      get("SELECT id,name,username,role,active FROM users WHERE id=?", [
-        user.id,
-      ]),
-    );
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
+        ]),
+      );
+    } catch (error) {
+      return res.status(error.databaseFailure ? 503 : 400).json({
+        error: error.databaseFailure
+          ? "Conexão interrompida. Tente novamente com a mesma operação."
+          : error.message,
+      });
+    }
+  },
+);
 module.exports = router;
