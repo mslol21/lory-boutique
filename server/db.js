@@ -42,15 +42,19 @@ async function initDB() {
         throw error;
       }
       const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+      const supabase = /\.(supabase\.com|supabase\.co)$/.test(url.hostname);
+      const ca = process.env.DATABASE_CA_CERT
+        ? process.env.DATABASE_CA_CERT.replace(/\\n/g, "\n")
+        : supabase
+          ? fs.readFileSync(path.join(__dirname, "certs", "supabase-prod-ca-2021.crt"), "utf8")
+          : undefined;
       if (!local && url.searchParams.get("sslmode") === "disable")
         throw new Error("A conexão remota exige TLS.");
       const ssl = local
         ? false
         : {
             rejectUnauthorized: true,
-            ...(process.env.DATABASE_CA_CERT
-              ? { ca: process.env.DATABASE_CA_CERT.replace(/\\n/g, "\n") }
-              : {}),
+            ...(ca ? { ca } : {}),
           };
       url.searchParams.delete("sslmode");
       pool = new Pool({

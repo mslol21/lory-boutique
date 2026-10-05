@@ -92,7 +92,7 @@ As chaves públicas do Supabase não substituem a conexão PostgreSQL do servido
 
    | Variável         | Valor                                                                                                                                                                                                     |
    | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | `DATABASE_URL`   | Supabase **Connect → Transaction pooler → URI**, substituindo o marcador da senha pela senha do banco; codifique caracteres especiais da senha para URL. Use o endereço do pooler exibido no seu projeto. |
+   | `DATABASE_URL`   | Supabase **Connect → Session pooler → URI** (porta 5432), substituindo o marcador da senha pela senha do banco; codifique caracteres especiais da senha para URL. O Transaction pooler também é compatível. |
    | `JWT_SECRET`     | Segredo aleatório com pelo menos 32 caracteres. Gere no terminal com `node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"`.                                                     |
    | `ADMIN_USERNAME` | `admin` (ou outro usuário escolhido).                                                                                                                                                                     |
    | `ADMIN_PASSWORD` | Sua senha inicial, com pelo menos 12 caracteres.                                                                                                                                                          |
@@ -123,6 +123,13 @@ retornam erro temporário, preservando a chave da operação pendente no PDV.
 Fotos de até 2,5 MB ficam no PostgreSQL, de forma persistente; versões antigas
 SQLite continuam lendo os arquivos de fotos existentes. Para volumes maiores,
 planeje migrar imagens para Storage. Não há preenchimento automático de produtos.
+
+O servidor inclui o certificado público **Supabase Root 2021 CA** para conexões
+com domínios `*.supabase.com` e `*.supabase.co`, com validação de certificado e
+nome do servidor ativa. Fonte: [certificado oficial](https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt),
+usado pelo painel do Supabase. Validade até 26/04/2031. Para substituir o CA,
+configure `DATABASE_CA_CERT` com o conteúdo PEM completo e faça Redeploy.
+Nenhuma chave privada acompanha esse certificado.
 
 `npm test` usa SQLite temporário e nunca utiliza `DATABASE_URL` real. A CI também
 executa a suíte com um PostgreSQL 17 descartável em localhost através de
