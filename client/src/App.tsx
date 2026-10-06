@@ -12,16 +12,26 @@ import { SettingsManager } from "./components/SettingsManager";
 import { LoginModal } from "./components/LoginModal";
 import { InstallApp } from "./components/InstallApp";
 
+const views = ["showcase", "pos", "products", "cash", "sales", "dashboard", "settings"] as const;
+type View = (typeof views)[number];
+const viewKey = (user: User) => `lory_view_v1_${user.id}`;
+
+function restoreView(user: User): View {
+  try {
+    const saved = localStorage.getItem(viewKey(user));
+    if (views.includes(saved as View)) {
+      return saved === "settings" && user.role !== "admin" ? "pos" : saved as View;
+    }
+  } catch {
+    // Remembering navigation is optional when browser storage is unavailable.
+  }
+  return "pos";
+}
+
 export function App() {
-  const [currentView, setCurrentView] = useState<
-    | "showcase"
-    | "pos"
-    | "products"
-    | "cash"
-    | "sales"
-    | "dashboard"
-    | "settings"
-  >("showcase");
+  const [currentView, setCurrentView] = useState<View>("showcase");
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [sessionError, setSessionError] = useState(false);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
@@ -53,15 +63,38 @@ export function App() {
   // Check user session
   const checkSession = async () => {
     const token = localStorage.getItem("lory_auth_token");
-    if (!token) return;
+    setIsCheckingSession(true);
+    setSessionError(false);
+    if (!token) {
+      setIsCheckingSession(false);
+      return;
+    }
     try {
       const res = await apiRequest<{ user: User }>("/auth/me");
       setCurrentUser(res.user);
+      setCurrentView(restoreView(res.user));
     } catch (err) {
-      setAuthToken(null);
-      setCurrentUser(null);
+      const status = (err as Error & { status?: number }).status;
+      if (status === 401 || status === 403) {
+        setAuthToken(null);
+        setCurrentUser(null);
+        setCurrentView("showcase");
+      } else {
+        setSessionError(true);
+      }
+    } finally {
+      setIsCheckingSession(false);
     }
   };
+
+  useEffect(() => {
+    if (!currentUser) return;
+    try {
+      localStorage.setItem(viewKey(currentUser), currentView);
+    } catch {
+      // The system remains usable when navigation cannot be saved.
+    }
+  }, [currentView, currentUser]);
 
   // Fetch Public Settings
   const fetchSettings = async () => {
@@ -96,19 +129,38 @@ export function App() {
   };
 
   const handleLogout = () => {
+    if (currentUser) {
+      try { localStorage.removeItem(viewKey(currentUser)); } catch { /* optional navigation */ }
+    }
     setAuthToken(null);
     setCurrentUser(null);
     setCurrentView("showcase");
   };
 
-  const handleNavigate = (view: any) => {
+  const handleNavigate = (view: View) => {
     if (view !== "showcase" && !currentUser) {
       setIsLoginModalOpen(true);
       return;
     }
+    if (view === "settings" && currentUser?.role !== "admin") return;
     setCurrentView(view);
     checkCashStatus();
   };
+
+  if (isCheckingSession || sessionError) {
+    return (
+      <main className="min-h-screen bg-[#fcf8f5] flex flex-col items-center justify-center gap-4 p-6 text-brand-900">
+        {sessionError ? (
+          <>
+            <p role="alert">Não foi possível verificar seu acesso. Confira a conexão e tente novamente.</p>
+            <button type="button" className="rounded-xl bg-brand-600 px-4 py-2 text-white" onClick={checkSession}>
+              Tentar novamente
+            </button>
+          </>
+        ) : <p role="status">Restaurando seu acesso…</p>}
+      </main>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#fcf8f5] flex flex-col font-sans selection:bg-brand-200 selection:text-brand-900">

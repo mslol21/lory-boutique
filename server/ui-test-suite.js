@@ -26,6 +26,7 @@ Object.defineProperty(global, "navigator", {
   value: dom.window.navigator,
   configurable: true,
 });
+window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 global.IS_REACT_ACT_ENVIRONMENT = true;
 const client = path.join(__dirname, "../client");
 const ts = require(client + "/node_modules/typescript");
@@ -294,6 +295,63 @@ const nativeFetch = global.fetch;
       assert.match(document.body.textContent, /Receita Líquida/);
       assert.ok(document.getElementById("report-start"));
       assert.ok(document.getElementById("report-end"));
+    });
+    const { App } = require(client + "/src/App.tsx");
+    let reloadNumber = 0;
+    const reloadApp = async () => {
+      await render(React.createElement(App, { key: ++reloadNumber }));
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await wait();
+        if (!/Restaurando seu acesso|Carregando métricas/.test(document.body.textContent)) break;
+      }
+    };
+    const clickText = async (text) => {
+      const button = [...document.querySelectorAll("button")].find(b => b.textContent === text);
+      assert.ok(button, text);
+      await act(async () => button.click());
+      await wait();
+    };
+    await reloadApp();
+    await check("Sessão existente abre o PDV e permanece após recarregar", async () => {
+      assert.match(document.body.textContent, /Cobrar \/|Carrinho/);
+      await reloadApp();
+      assert.match(document.body.textContent, /Cobrar \/|Carrinho/);
+      assert.doesNotMatch(document.body.textContent, /Vitrine & Coleção/);
+    });
+    await clickText("Painel");
+    await reloadApp();
+    await check("Recarregar mantém o painel de gestão selecionado", () => {
+      assert.match(document.body.textContent, /Receita Líquida/);
+      assert.ok(document.getElementById("report-start"));
+    });
+    const viewStorageKey = "lory_view_v1_" + login.user.id;
+    localStorage.setItem(viewStorageKey, "tela-inexistente");
+    await reloadApp();
+    await check("Tela salva inválida retorna ao PDV", () => assert.match(document.body.textContent, /Cobrar \/|Carrinho/));
+    global.fetch = (url, options) => String(url) === "/api/auth/me" ? Promise.reject(new Error("offline")) : nativeFetch(new URL(url, base), options);
+    await reloadApp();
+    await check("Falha temporária preserva sessão e permite restaurar o PDV", async () => {
+      assert.match(document.body.textContent, /Não foi possível verificar seu acesso/);
+      assert.equal(localStorage.getItem("lory_auth_token"), login.token);
+      assert.doesNotMatch(document.body.textContent, /Cobrar \/|Vitrine & Coleção/);
+      global.fetch = (url, options) => nativeFetch(new URL(url, base), options);
+      await clickText("Tentar novamente");
+      assert.match(document.body.textContent, /Cobrar \/|Carrinho/);
+    });
+    await act(async () => document.querySelector('button[title="Sair do sistema"]').click());
+    await reloadApp();
+    await check("Sair encerra o acesso e recarregar mantém a vitrine", () => {
+      assert.equal(localStorage.getItem("lory_auth_token"), null);
+      assert.equal(localStorage.getItem(viewStorageKey), null);
+      assert.match(document.body.textContent, /Vitrine & Coleção/);
+    });
+    localStorage.setItem("lory_auth_token", "token-invalido");
+    localStorage.setItem(viewStorageKey, "settings");
+    await reloadApp();
+    await check("Sessão inválida não restaura telas internas", () => {
+      assert.equal(localStorage.getItem("lory_auth_token"), null);
+      assert.match(document.body.textContent, /Vitrine & Coleção/);
+      assert.doesNotMatch(document.body.textContent, /Painel Gerencial|Cobrar \/|Carrinho/);
     });
     console.log(
       `\n${checks} testes de componentes aprovados em DOM simulado (sem validação visual).`,
