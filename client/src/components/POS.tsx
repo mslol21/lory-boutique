@@ -456,7 +456,7 @@ export const POS: React.FC<POSProps> = ({
           <div className="relative">
             <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 text-gray-400">
               <Search className="w-4 h-4" />
-              <Barcode className="w-4 h-4 text-rose-500" />
+              <Barcode className="w-4 h-4 text-brand-500" />
             </div>
             <input
               ref={searchInputRef}
@@ -465,11 +465,11 @@ export const POS: React.FC<POSProps> = ({
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={handleKeyDownSearch}
               placeholder="Escanear leitor de código de barras ou buscar por nome, SKU, referência..."
-              className="w-full pl-16 pr-4 py-3 bg-white text-sm rounded-2xl border border-gray-200 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 shadow-2xs font-medium transition-all"
+              className="w-full pl-16 pr-4 py-3 bg-white text-sm rounded-2xl border border-gray-200 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 shadow-2xs font-medium transition-all"
             />
             {isSearching && (
               <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
           </div>
@@ -499,12 +499,12 @@ export const POS: React.FC<POSProps> = ({
                     onClick={() => handleProductSelect(prod)}
                     className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                       hasStock
-                        ? "border-gray-200 hover:border-rose-400 hover:shadow-xs bg-white"
+                        ? "border-gray-200 hover:border-brand-400 hover:shadow-xs bg-white"
                         : "border-gray-200 bg-gray-50/70 opacity-60"
                     }`}
                   >
                     <div>
-                      <div className="aspect-square rounded-xl overflow-hidden bg-rose-50/50 mb-2 relative">
+                      <div className="aspect-square rounded-xl overflow-hidden bg-brand-50/50 mb-2 relative">
                         {prod.images && prod.images[0] ? (
                           <img
                             src={prod.images[0]}
@@ -512,7 +512,7 @@ export const POS: React.FC<POSProps> = ({
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-rose-300 font-serif text-lg font-bold">
+                          <div className="w-full h-full flex items-center justify-center text-brand-300 font-serif text-lg font-bold">
                             LORY
                           </div>
                         )}
@@ -543,7 +543,7 @@ export const POS: React.FC<POSProps> = ({
                       <span className="text-xs font-bold text-gray-950 font-serif">
                         {formatBRL(effectivePrice)}
                       </span>
-                      <span className="text-[10px] text-rose-600 font-semibold bg-rose-50 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] text-brand-600 font-semibold bg-brand-50 px-1.5 py-0.5 rounded">
                         +{prod.variations.length} var.
                       </span>
                     </div>
@@ -561,7 +561,7 @@ export const POS: React.FC<POSProps> = ({
               {/* Cart Header */}
               <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
                 <div className="flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5 text-rose-600" />
+                  <ShoppingCart className="w-5 h-5 text-brand-600" />
                   <h3 className="font-bold text-gray-900 text-sm">
                     Venda Balcão Atual
                   </h3>
@@ -586,7 +586,7 @@ export const POS: React.FC<POSProps> = ({
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="Cliente (opcional)"
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-hidden focus:border-rose-400"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-hidden focus:border-brand-400"
                   />
                 </div>
                 <div>
@@ -595,7 +595,7 @@ export const POS: React.FC<POSProps> = ({
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     placeholder="Telefone/WhatsApp"
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-hidden focus:border-rose-400"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 focus:outline-hidden focus:border-brand-400"
                   />
                 </div>
               </div>
@@ -654,7 +654,7 @@ export const POS: React.FC<POSProps> = ({
                         <div className="flex items-center bg-white rounded-lg border border-gray-200">
                           <button
                             onClick={() => updateCartQty(idx, -1)}
-                            className="p-1 text-gray-600 hover:text-rose-600 cursor-pointer"
+                            className="p-1 text-gray-600 hover:text-brand-600 cursor-pointer"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
@@ -663,7 +663,7 @@ export const POS: React.FC<POSProps> = ({
                           </span>
                           <button
                             onClick={() => updateCartQty(idx, 1)}
-                            className="p-1 text-gray-600 hover:text-rose-600 cursor-pointer"
+                            className="p-1 text-gray-600 hover:text-brand-600 cursor-pointer"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -731,9 +731,9 @@ export const POS: React.FC<POSProps> = ({
               </div>
 
               {/* Total Display */}
-              <div className="p-3 bg-gradient-to-r from-rose-50 to-amber-50 rounded-2xl border border-rose-200/60 flex items-center justify-between">
+              <div className="p-3 bg-gradient-to-r from-brand-50 to-amber-50 rounded-2xl border border-brand-200/60 flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider block">
+                  <span className="text-[11px] font-bold text-brand-800 uppercase tracking-wider block">
                     Total a Cobrar
                   </span>
                   <span className="text-xs text-gray-500">
@@ -749,7 +749,7 @@ export const POS: React.FC<POSProps> = ({
               <button
                 onClick={handleStartCheckout}
                 disabled={cart.length === 0 || (!isCashOpen && !hasPending)}
-                className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-sm font-bold rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-bold rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Cobrar / Forma de Pagamento</span>
                 <ArrowRight className="w-4 h-4" />
@@ -762,7 +762,7 @@ export const POS: React.FC<POSProps> = ({
       {/* Variation Picker Modal */}
       {selectedProduct && (
         <Dialog className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-100 animate-in fade-in zoom-in-95 duration-200 p-6">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-brand-100 animate-in fade-in zoom-in-95 duration-200 p-6">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
               <div>
                 <h3 className="font-bold text-gray-900 text-base">
@@ -798,8 +798,8 @@ export const POS: React.FC<POSProps> = ({
                     onClick={() => setSelectedSize(size)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                       selectedSize === size
-                        ? "bg-rose-600 border-rose-600 text-white shadow-xs"
-                        : "bg-white border-gray-300 text-gray-800 hover:border-rose-400"
+                        ? "bg-brand-600 border-brand-600 text-white shadow-xs"
+                        : "bg-white border-gray-300 text-gray-800 hover:border-brand-400"
                     }`}
                   >
                     {size}
@@ -828,9 +828,9 @@ export const POS: React.FC<POSProps> = ({
                       onClick={() => setSelectedColor(color)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                         selectedColor === color
-                          ? "bg-rose-600 border-rose-600 text-white shadow-xs"
+                          ? "bg-brand-600 border-brand-600 text-white shadow-xs"
                           : stock > 0
-                            ? "bg-white border-gray-300 text-gray-800 hover:border-rose-400"
+                            ? "bg-white border-gray-300 text-gray-800 hover:border-brand-400"
                             : "bg-gray-100 border-gray-200 text-gray-400 line-through"
                       }`}
                     >
@@ -851,7 +851,7 @@ export const POS: React.FC<POSProps> = ({
               <button
                 onClick={addVariationToCart}
                 disabled={!selectedSize || !selectedColor}
-                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 Adicionar ao Carrinho
               </button>
@@ -863,11 +863,11 @@ export const POS: React.FC<POSProps> = ({
       {/* Checkout & Split Payment Modal */}
       {isCheckoutOpen && (
         <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-rose-100 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-brand-100 animate-in fade-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="p-5 bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 border-b border-rose-100 flex items-center justify-between">
+            <div className="p-5 bg-gradient-to-r from-brand-50 via-amber-50 to-brand-50 border-b border-brand-100 flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider block">
+                <span className="text-[10px] font-bold text-brand-800 uppercase tracking-wider block">
                   Finalização de Venda PDV
                 </span>
                 <h3 className="text-xl font-serif font-black text-gray-900">
@@ -907,7 +907,7 @@ export const POS: React.FC<POSProps> = ({
                   </label>
                   <button
                     onClick={addSplitPaymentMethod}
-                    className="text-xs font-semibold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-semibold text-brand-600 hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Dividir Pagamento
@@ -1003,7 +1003,7 @@ export const POS: React.FC<POSProps> = ({
               <button
                 onClick={handleFinalizeSale}
                 disabled={isSubmitting || totalPaidCents < totalCents}
-                className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-sm font-bold rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-bold rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>

@@ -1,4 +1,5 @@
 import { Dialog } from "./Dialog";
+import { BrandLogo } from "./BrandLogo";
 import React, { useState, useEffect } from "react";
 import { PublicProduct, Category, StoreSettings, InterestItem } from "../types";
 import { apiRequest, formatBRL } from "../services/api";
@@ -283,7 +284,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
   );
 
   return (
-    <div className="min-h-screen bg-[#faf7f8] text-gray-800">
+    <div className="min-h-screen bg-[#fcf8f5] text-gray-800">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-medium animate-in fade-in slide-in-from-bottom-5">
@@ -301,15 +302,16 @@ export const Showcase: React.FC<ShowcaseProps> = ({
         </div>
       )}
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-rose-100/70 via-rose-50/40 to-[#faf7f8] pt-12 pb-16 px-4 sm:px-6 lg:px-8 border-b border-rose-100/50">
+      <section className="relative overflow-hidden bg-gradient-to-b from-brand-100/70 via-brand-50/40 to-[#fcf8f5] pt-12 pb-16 px-4 sm:px-6 lg:px-8 border-b border-brand-100/50">
         <div className="max-w-5xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 backdrop-blur-xs border border-rose-200 text-rose-800 text-xs font-medium mb-6 shadow-2xs">
+          <BrandLogo priority className="w-36 h-36 sm:w-44 sm:h-44 mx-auto mb-6 ring-1 ring-brand-200 shadow-lg shadow-brand-900/10" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 backdrop-blur-xs border border-brand-200 text-brand-800 text-xs font-medium mb-6 shadow-2xs">
             <Sparkles className="w-3.5 h-3.5 text-amber-600" />
             <span>Coleção Feminina com Detalhes Exclusivos</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif font-bold text-gray-950 tracking-tight leading-tight">
-            Elegância, leveza & estilo contemporâneo.
+            Estilo em todos os momentos.
           </h1>
 
           <p className="mt-4 text-base sm:text-lg text-gray-600 max-w-2xl mx-auto font-light leading-relaxed">
@@ -324,7 +326,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                 const el = document.getElementById("catalogo-vitrine");
                 el?.scrollIntoView({ behavior: "smooth" });
               }}
-              className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white font-medium text-sm rounded-2xl shadow-sm transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-2"
+              className="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-medium text-sm rounded-2xl shadow-sm transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-2"
             >
               <ShoppingBag className="w-4 h-4" />
               <span>Explorar Vitrine</span>
@@ -338,7 +340,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               }
               target="_blank"
               rel="noreferrer"
-              className="px-6 py-3 bg-white hover:bg-rose-50 border border-rose-200 text-rose-800 font-medium text-sm rounded-2xl shadow-2xs transition-all cursor-pointer flex items-center gap-2"
+              className="px-6 py-3 bg-white hover:bg-brand-50 border border-brand-200 text-brand-800 font-medium text-sm rounded-2xl shadow-2xs transition-all cursor-pointer flex items-center gap-2"
             >
               <MessageCircle className="w-4 h-4 text-emerald-600" />
               <span>Chamar no WhatsApp</span>
@@ -346,9 +348,9 @@ export const Showcase: React.FC<ShowcaseProps> = ({
           </div>
 
           {/* Boutique operational badges */}
-          <div className="mt-10 pt-8 border-t border-rose-200/60 max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
-            <div className="flex items-start gap-3 p-3 rounded-2xl bg-white/70 border border-rose-100">
-              <div className="p-2 rounded-xl bg-rose-100/80 text-rose-700 shrink-0">
+          <div className="mt-10 pt-8 border-t border-brand-200/60 max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+            <div className="flex items-start gap-3 p-3 rounded-2xl bg-white/70 border border-brand-100">
+              <div className="p-2 rounded-xl bg-brand-100/80 text-brand-700 shrink-0">
                 <Store className="w-4 h-4" />
               </div>
               <div>
@@ -361,7 +363,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-3 rounded-2xl bg-white/70 border border-rose-100">
+            <div className="flex items-start gap-3 p-3 rounded-2xl bg-white/70 border border-brand-100">
               <div className="p-2 rounded-xl bg-amber-100/80 text-amber-800 shrink-0">
                 <Sparkles className="w-4 h-4" />
               </div>
@@ -375,7 +377,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-3 rounded-2xl bg-white/70 border border-rose-100">
+            <div className="flex items-start gap-3 p-3 rounded-2xl bg-white/70 border border-brand-100">
               <div className="p-2 rounded-xl bg-emerald-100/80 text-emerald-800 shrink-0">
                 <MessageCircle className="w-4 h-4" />
               </div>
@@ -408,7 +410,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar por blusa, vestido, referência..."
-                className="w-full pl-10 pr-4 py-2.5 bg-white text-sm rounded-2xl border border-rose-200 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 shadow-2xs transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 bg-white text-sm rounded-2xl border border-brand-200 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 shadow-2xs transition-colors"
               />
               {searchTerm && (
                 <button
@@ -428,7 +430,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               <select
                 value={selectedSize}
                 onChange={(e) => setSelectedSize(e.target.value)}
-                className="px-3 py-2 bg-white text-xs font-medium rounded-xl border border-rose-200 focus:outline-hidden focus:border-rose-500 text-gray-700 shadow-2xs"
+                className="px-3 py-2 bg-white text-xs font-medium rounded-xl border border-brand-200 focus:outline-hidden focus:border-brand-500 text-gray-700 shadow-2xs"
               >
                 <option value="">Todos os Tamanhos</option>
                 {availableSizes.map((s) => (
@@ -442,7 +444,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               <select
                 value={selectedColor}
                 onChange={(e) => setSelectedColor(e.target.value)}
-                className="px-3 py-2 bg-white text-xs font-medium rounded-xl border border-rose-200 focus:outline-hidden focus:border-rose-500 text-gray-700 shadow-2xs"
+                className="px-3 py-2 bg-white text-xs font-medium rounded-xl border border-brand-200 focus:outline-hidden focus:border-brand-500 text-gray-700 shadow-2xs"
               >
                 <option value="">Todas as Cores</option>
                 {availableColors.map((c) => (
@@ -456,7 +458,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               <select
                 value={priceRange}
                 onChange={(e) => setPriceRange(e.target.value)}
-                className="px-3 py-2 bg-white text-xs font-medium rounded-xl border border-rose-200 focus:outline-hidden focus:border-rose-500 text-gray-700 shadow-2xs"
+                className="px-3 py-2 bg-white text-xs font-medium rounded-xl border border-brand-200 focus:outline-hidden focus:border-brand-500 text-gray-700 shadow-2xs"
               >
                 <option value="">Qualquer Preço</option>
                 <option value="under100">Até R$ 99,99</option>
@@ -477,7 +479,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                     setPriceRange("");
                     setSearchTerm("");
                   }}
-                  className="px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                  className="px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 rounded-xl transition-colors cursor-pointer"
                 >
                   Limpar Filtros
                 </button>
@@ -491,8 +493,8 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               onClick={() => setSelectedCategory("")}
               className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 selectedCategory === ""
-                  ? "bg-rose-600 text-white shadow-xs"
-                  : "bg-white text-gray-700 border border-rose-100 hover:border-rose-300"
+                  ? "bg-brand-600 text-white shadow-xs"
+                  : "bg-white text-gray-700 border border-brand-100 hover:border-brand-300"
               }`}
             >
               Todas as Peças ({products.length})
@@ -507,8 +509,8 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                   onClick={() => setSelectedCategory(cat.id)}
                   className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     selectedCategory === cat.id
-                      ? "bg-rose-600 text-white shadow-xs"
-                      : "bg-white text-gray-700 border border-rose-100 hover:border-rose-300"
+                      ? "bg-brand-600 text-white shadow-xs"
+                      : "bg-white text-gray-700 border border-brand-100 hover:border-brand-300"
                   }`}
                 >
                   {cat.name} ({count})
@@ -521,14 +523,14 @@ export const Showcase: React.FC<ShowcaseProps> = ({
         {/* Product Grid */}
         {loading ? (
           <div className="py-24 text-center">
-            <div className="w-10 h-10 border-3 border-rose-200 border-t-rose-600 rounded-full animate-spin mx-auto mb-3" />
+            <div className="w-10 h-10 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto mb-3" />
             <p className="text-xs text-gray-500 font-medium">
               Carregando coleção da boutique...
             </p>
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="py-20 text-center bg-white rounded-3xl border border-rose-100 p-8 max-w-md mx-auto">
-            <AlertCircle className="w-10 h-10 text-rose-300 mx-auto mb-3" />
+          <div className="py-20 text-center bg-white rounded-3xl border border-brand-100 p-8 max-w-md mx-auto">
+            <AlertCircle className="w-10 h-10 text-brand-300 mx-auto mb-3" />
             <h3 className="text-base font-serif font-bold text-gray-800">
               Ainda não há peças disponíveis com estes filtros
             </h3>
@@ -543,7 +545,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                 setPriceRange("");
                 setSearchTerm("");
               }}
-              className="px-4 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              className="px-4 py-2 bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
             >
               Ver Todas as Peças
             </button>
@@ -569,12 +571,12 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               return (
                 <div
                   key={prod.id}
-                  className="group bg-white rounded-3xl border border-rose-100 overflow-hidden shadow-2xs hover:shadow-lg transition-all duration-300 flex flex-col"
+                  className="group bg-white rounded-3xl border border-brand-100 overflow-hidden shadow-2xs hover:shadow-lg transition-all duration-300 flex flex-col"
                 >
                   {/* Image container */}
                   <div
                     onClick={() => openProductDetail(prod)}
-                    className="relative aspect-4/5 overflow-hidden bg-rose-50/50 cursor-pointer"
+                    className="relative aspect-4/5 overflow-hidden bg-brand-50/50 cursor-pointer"
                   >
                     <img
                       loading="lazy"
@@ -608,13 +610,13 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div>
                       {prod.category_name && (
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500 mb-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-brand-500 mb-1">
                           {prod.category_name}
                         </p>
                       )}
                       <h3
                         onClick={() => openProductDetail(prod)}
-                        className="font-serif font-bold text-gray-900 text-base group-hover:text-rose-700 transition-colors cursor-pointer line-clamp-1"
+                        className="font-serif font-bold text-gray-900 text-base group-hover:text-brand-700 transition-colors cursor-pointer line-clamp-1"
                       >
                         {prod.name}
                       </h3>
@@ -623,7 +625,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                       </p>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-rose-100/60">
+                    <div className="mt-4 pt-3 border-t border-brand-100/60">
                       {/* Price & Sizes */}
                       <div className="flex items-baseline justify-between mb-3">
                         <div>
@@ -648,7 +650,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                             {uniqueSizes.slice(0, 3).map((s) => (
                               <span
                                 key={s}
-                                className="px-1.5 py-0.5 bg-rose-50 text-rose-800 text-[10px] font-semibold rounded"
+                                className="px-1.5 py-0.5 bg-brand-50 text-brand-800 text-[10px] font-semibold rounded"
                               >
                                 {s}
                               </span>
@@ -666,7 +668,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => openProductDetail(prod)}
-                          className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                          className="w-full py-2 bg-brand-50 hover:bg-brand-100 text-brand-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
                         >
                           Ver Detalhes
                         </button>
@@ -674,7 +676,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                           onClick={() => {
                             openProductDetail(prod);
                           }}
-                          className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Heart className="w-3.5 h-3.5" />
                           <span>Tenho Interesse</span>
@@ -692,17 +694,17 @@ export const Showcase: React.FC<ShowcaseProps> = ({
       {/* Product Detail Modal */}
       {activeProduct && (
         <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden border border-rose-100 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden border border-brand-100 animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-4 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
-              <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">
+            <div className="p-4 bg-brand-50 border-b border-brand-100 flex items-center justify-between">
+              <span className="text-xs font-bold text-brand-800 uppercase tracking-wider">
                 {activeProduct.category_name || "Peça da Boutique"}
               </span>
               <button
                 data-dialog-close
                 aria-label="Fechar janela"
                 onClick={() => setActiveProduct(null)}
-                className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-rose-100 rounded-full transition-colors cursor-pointer"
+                className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-brand-100 rounded-full transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -711,7 +713,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Gallery */}
               <div>
-                <div className="aspect-4/5 rounded-2xl overflow-hidden bg-rose-50 border border-rose-100 shadow-2xs">
+                <div className="aspect-4/5 rounded-2xl overflow-hidden bg-brand-50 border border-brand-100 shadow-2xs">
                   <img
                     loading="lazy"
                     src={
@@ -731,7 +733,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                         onClick={() => setModalActiveImageIdx(idx)}
                         className={`w-14 h-16 rounded-xl overflow-hidden border-2 shrink-0 cursor-pointer ${
                           modalActiveImageIdx === idx
-                            ? "border-rose-600 shadow-xs"
+                            ? "border-brand-600 shadow-xs"
                             : "border-transparent opacity-70"
                         }`}
                       >
@@ -801,9 +803,9 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                             onClick={() => setModalSize(size)}
                             className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                               modalSize === size
-                                ? "bg-rose-600 border-rose-600 text-white shadow-xs"
+                                ? "bg-brand-600 border-brand-600 text-white shadow-xs"
                                 : isAvailable
-                                  ? "bg-white border-gray-300 text-gray-800 hover:border-rose-400"
+                                  ? "bg-white border-gray-300 text-gray-800 hover:border-brand-400"
                                   : "bg-gray-100 border-gray-200 text-gray-400 line-through"
                             }`}
                           >
@@ -836,9 +838,9 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                             onClick={() => setModalColor(color)}
                             className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                               modalColor === color
-                                ? "bg-rose-600 border-rose-600 text-white shadow-xs"
+                                ? "bg-brand-600 border-brand-600 text-white shadow-xs"
                                 : isAvailable
-                                  ? "bg-white border-gray-300 text-gray-800 hover:border-rose-400"
+                                  ? "bg-white border-gray-300 text-gray-800 hover:border-brand-400"
                                   : "bg-gray-100 border-gray-200 text-gray-400 opacity-60"
                             }`}
                           >
@@ -852,7 +854,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                 </div>
 
                 {/* Modal footer actions */}
-                <div className="mt-8 pt-4 border-t border-rose-100 space-y-3">
+                <div className="mt-8 pt-4 border-t border-brand-100 space-y-3">
                   <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-snug">
                     <p className="font-semibold">⚠️ Informação Importante:</p>
                     <p>
@@ -874,7 +876,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                         setActiveProduct(null);
                       }}
                       disabled={!modalSize || !modalColor}
-                      className="w-full py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-semibold rounded-2xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full py-3 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-semibold rounded-2xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Heart className="w-4 h-4" />
                       <span>Adicionar à Lista</span>
@@ -905,9 +907,9 @@ export const Showcase: React.FC<ShowcaseProps> = ({
         <Dialog className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex justify-end">
           <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-200">
             {/* Drawer Header */}
-            <div className="p-5 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+            <div className="p-5 bg-brand-50 border-b border-brand-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Heart className="w-5 h-5 text-rose-600" />
+                <Heart className="w-5 h-5 text-brand-600" />
                 <h3 className="font-serif font-bold text-gray-900 text-lg">
                   Peças de Interesse
                 </h3>
@@ -926,7 +928,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
             <div className="p-5 flex-1 overflow-y-auto space-y-4">
               {interestList.length === 0 ? (
                 <div className="py-16 text-center text-gray-400">
-                  <ShoppingBag className="w-12 h-12 mx-auto mb-2 text-rose-200" />
+                  <ShoppingBag className="w-12 h-12 mx-auto mb-2 text-brand-200" />
                   <p className="text-sm font-medium text-gray-600">
                     Sua lista está vazia
                   </p>
@@ -1034,13 +1036,11 @@ export const Showcase: React.FC<ShowcaseProps> = ({
       )}
 
       {/* Boutique Footer */}
-      <footer className="bg-white border-t border-rose-100 py-12 px-4 sm:px-6 lg:px-8">
+      <footer className="bg-white border-t border-brand-100 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white font-serif font-bold">
-                L
-              </div>
+              <BrandLogo decorative className="w-16 h-16 ring-1 ring-brand-200" />
               <span className="font-serif font-bold text-lg text-gray-900">
                 {settings?.store_name || "Lory Boutique"}
               </span>
@@ -1057,7 +1057,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
             </h4>
             <div className="space-y-2 text-xs text-gray-600">
               <p className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <MapPin className="w-4 h-4 text-brand-600 shrink-0 mt-0.5" />
                 <span>
                   {settings?.address ||
                     "Rua Hipólito de Camargo, 45 — Guaianases, São Paulo/SP"}
@@ -1094,9 +1094,9 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                 }
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-2 text-rose-700 hover:underline"
+                className="flex items-center gap-2 text-brand-700 hover:underline"
               >
-                <InstagramIcon className="w-4 h-4 text-rose-600 shrink-0" />
+                <InstagramIcon className="w-4 h-4 text-brand-600 shrink-0" />
                 <span>
                   Instagram: {settings?.instagram_handle || "@loryboutiquel"}
                 </span>
@@ -1105,7 +1105,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
           </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-rose-100 text-center text-xs text-gray-400">
+        <div className="mt-8 pt-6 border-t border-brand-100 text-center text-xs text-gray-400">
           <p>
             © {new Date().getFullYear()}{" "}
             {settings?.store_name || "Lory Boutique"}. Todos os direitos

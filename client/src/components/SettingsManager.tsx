@@ -190,10 +190,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       </div>
 
       {/* Demo Mode Banner */}
-      <div className="p-4 bg-rose-50/70 border border-rose-200 rounded-3xl flex items-start gap-3">
+      <div className="p-4 bg-brand-50/70 border border-brand-200 rounded-3xl flex items-start gap-3">
         <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
         <div>
-          <h4 className="font-bold text-rose-950 text-sm">
+          <h4 className="font-bold text-brand-950 text-sm">
             Identidade Visual & Dados Confirmados
           </h4>
           <p className="text-gray-600 mt-0.5 leading-relaxed">
@@ -211,7 +211,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
           onClick={() => setActiveTab("store")}
           className={`px-4 py-2 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-2 ${
             activeTab === "store"
-              ? "bg-rose-600 text-white shadow-xs"
+              ? "bg-brand-600 text-white shadow-xs"
               : "text-gray-600 hover:bg-gray-100"
           }`}
         >
@@ -223,7 +223,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
           onClick={() => setActiveTab("users")}
           className={`px-4 py-2 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-2 ${
             activeTab === "users"
-              ? "bg-rose-600 text-white shadow-xs"
+              ? "bg-brand-600 text-white shadow-xs"
               : "text-gray-600 hover:bg-gray-100"
           }`}
         >
@@ -385,7 +385,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
           <div className="pt-4 border-t border-gray-100 flex justify-end">
             <button
               type="submit"
-              className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+              className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
             >
               Salvar Configurações
             </button>
@@ -402,7 +402,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
             </h3>
             <button
               onClick={() => setIsNewUserModalOpen(true)}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Novo Usuário</span>
@@ -431,8 +431,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                     </td>
                     <td className="py-3 px-4 capitalize">
                       {u.role === "admin" ? (
-                        <span className="inline-flex items-center gap-1 text-rose-800 font-bold bg-rose-50 px-2 py-0.5 rounded-md">
-                          <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+                        <span className="inline-flex items-center gap-1 text-brand-800 font-bold bg-brand-50 px-2 py-0.5 rounded-md">
+                          <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
                           Administrador
                         </span>
                       ) : (
@@ -484,7 +484,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       {/* New User Modal */}
       {isNewUserModalOpen && (
         <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-rose-100">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-brand-100">
             <h3 className="font-bold text-gray-900 text-base mb-1">
               Cadastrar Usuário da Equipe
             </h3>
@@ -562,7 +562,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
                   Criar Usuário
                 </button>

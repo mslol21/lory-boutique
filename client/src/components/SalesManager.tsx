@@ -448,7 +448,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
               setPaymentFilter("");
               setStatusFilter("");
             }}
-            className="text-rose-600 hover:underline font-semibold cursor-pointer"
+            className="text-brand-600 hover:underline font-semibold cursor-pointer"
           >
             Limpar Filtros
           </button>
@@ -502,7 +502,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
                 sales.map((sale) => (
                   <tr
                     key={sale.id}
-                    className="hover:bg-rose-50/20 transition-colors"
+                    className="hover:bg-brand-50/20 transition-colors"
                   >
                     <td className="py-3.5 px-4">
                       <span className="font-bold text-gray-900 block font-mono">
@@ -576,7 +576,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
                       {/* Print Receipt */}
                       <button
                         onClick={() => setSelectedSaleForReceipt(sale)}
-                        className="p-1.5 text-gray-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-gray-500 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer"
                         title="Reimprimir Comprovante Não Fiscal"
                       >
                         <Printer className="w-4 h-4" />
@@ -619,7 +619,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
       {/* Cancel Sale Modal */}
       {selectedSaleForCancel && (
         <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-rose-100">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-brand-100">
             <h3 className="font-bold text-gray-900 text-base mb-1">
               Cancelar Venda
             </h3>
@@ -672,7 +672,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
       {/* Return & Exchange Modal */}
       {selectedSaleForExchange && (
         <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 border border-rose-100 max-h-[85vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 border border-brand-100 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
               <div>
                 <h3 className="font-bold text-gray-900 text-base">
@@ -699,7 +699,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
                 onClick={() => setExchangeMode("return")}
                 className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
                   exchangeMode === "return"
-                    ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                    ? "bg-brand-600 text-white border-brand-600 shadow-xs"
                     : "bg-gray-50 border-gray-200 text-gray-700"
                 }`}
               >
@@ -710,7 +710,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
                 onClick={() => setExchangeMode("exchange")}
                 className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
                   exchangeMode === "exchange"
-                    ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                    ? "bg-brand-600 text-white border-brand-600 shadow-xs"
                     : "bg-gray-50 border-gray-200 text-gray-700"
                 }`}
               >
@@ -753,7 +753,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
                               updated[idx].restock = e.target.checked;
                               setReturnItemsState(updated);
                             }}
-                            className="rounded text-rose-600"
+                            className="rounded text-brand-600"
                           />
                           <span>Retornar ao estoque</span>
                         </label>
@@ -843,7 +843,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
                                       },
                                     ]);
                                   }}
-                                  className="px-1.5 py-0.5 bg-white border border-gray-200 rounded text-[10px] hover:bg-rose-50"
+                                  className="px-1.5 py-0.5 bg-white border border-gray-200 rounded text-[10px] hover:bg-brand-50"
                                 >
                                   +{v.size}/{v.color} (
                                   {formatBRL(
@@ -858,8 +858,8 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
                   </div>
 
                   {newExchangeItems.length > 0 && (
-                    <div className="p-2 bg-rose-50/50 rounded-xl space-y-1">
-                      <span className="font-bold text-rose-900 block">
+                    <div className="p-2 bg-brand-50/50 rounded-xl space-y-1">
+                      <span className="font-bold text-brand-900 block">
                         Novas peças selecionadas:
                       </span>
                       {newExchangeItems.map((n, idx) => (
@@ -946,7 +946,7 @@ export const SalesManager: React.FC<SalesManagerProps> = ({
                 <button
                   type="submit"
                   disabled={processing}
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
                   Concluir Operação
                 </button>

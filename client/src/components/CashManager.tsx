@@ -183,7 +183,7 @@ export const CashManager: React.FC<CashManagerProps> = ({ onStatusChange }) => {
                 setInitialAmountStr('100.00');
                 setIsOpenModalActive(true);
               }}
-              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-2xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
+              className="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-2xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
             >
               <Unlock className="w-4 h-4" />
               <span>Abrir Caixa Agora</span>
@@ -280,15 +280,15 @@ export const CashManager: React.FC<CashManagerProps> = ({ onStatusChange }) => {
             </div>
 
             {/* Total Gross Revenue */}
-            <div className="p-5 bg-gradient-to-br from-rose-50 to-amber-50 rounded-3xl border border-rose-200 shadow-2xs">
-              <div className="flex items-center justify-between text-rose-800 mb-2">
+            <div className="p-5 bg-gradient-to-br from-brand-50 to-amber-50 rounded-3xl border border-brand-200 shadow-2xs">
+              <div className="flex items-center justify-between text-brand-800 mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider">Faturamento da Sessão</span>
-                <DollarSign className="w-5 h-5 text-rose-600" />
+                <DollarSign className="w-5 h-5 text-brand-600" />
               </div>
-              <h3 className="text-2xl font-serif font-black text-rose-950">
+              <h3 className="text-2xl font-serif font-black text-brand-950">
                 {formatBRL(summary.gross_revenue_cents)}
               </h3>
-              <p className="text-[11px] text-rose-700 mt-1">
+              <p className="text-[11px] text-brand-700 mt-1">
                 {summary.total_sales_count} venda(s) registrada(s)
               </p>
             </div>
@@ -463,7 +463,7 @@ export const CashManager: React.FC<CashManagerProps> = ({ onStatusChange }) => {
       {/* Open Cash Modal */}
       {isOpenModalActive && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-rose-100">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-brand-100">
             <h3 className="font-bold text-gray-900 text-base mb-1">Abertura de Caixa</h3>
             <p className="text-xs text-gray-500 mb-4">
               Informe o valor em dinheiro do troco inicial na gaveta
@@ -492,7 +492,7 @@ export const CashManager: React.FC<CashManagerProps> = ({ onStatusChange }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
                   Abrir Caixa
                 </button>
@@ -505,7 +505,7 @@ export const CashManager: React.FC<CashManagerProps> = ({ onStatusChange }) => {
       {/* Bleed / Supply Modal */}
       {isMovementModalActive && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-rose-100">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-brand-100">
             <h3 className="font-bold text-gray-900 text-base mb-1">
               {movementType === 'bleed' ? 'Realizar Sangria' : 'Realizar Suprimento'}
             </h3>
@@ -550,7 +550,7 @@ export const CashManager: React.FC<CashManagerProps> = ({ onStatusChange }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
                   Confirmar
                 </button>
@@ -563,7 +563,7 @@ export const CashManager: React.FC<CashManagerProps> = ({ onStatusChange }) => {
       {/* Close Cash Modal */}
       {isCloseModalActive && summary && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-rose-100">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-brand-100">
             <h3 className="font-bold text-gray-900 text-base mb-1">Fechamento e Conferência de Caixa</h3>
             <p className="text-xs text-gray-500 mb-4">
               Conte as cédulas e moedas físicas na gaveta e confirme o encerramento da sessão

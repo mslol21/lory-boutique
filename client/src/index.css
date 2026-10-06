@@ -1,29 +1,46 @@
 @import "tailwindcss";
 
+/* Blush, antique gold and warm ink, inspired by the store's original logo. */
+@theme {
+  --color-brand-50: #fdf5f2;
+  --color-brand-100: #f5ded6;
+  --color-brand-200: #edc0b2;
+  --color-brand-300: #dfaa94;
+  --color-brand-400: #bc8b50;
+  --color-brand-500: #966929;
+  --color-brand-600: #80561f;
+  --color-brand-700: #67441b;
+  --color-brand-800: #503516;
+  --color-brand-900: #372711;
+  --color-brand-950: #201c14;
+  --color-gray-50: #faf7f3;
+  --color-gray-100: #f2ede7;
+  --color-gray-200: #e4dcd2;
+  --color-gray-300: #cfc2b4;
+  --color-gray-400: #998a7c;
+  --color-gray-500: #776b60;
+  --color-gray-600: #60554b;
+  --color-gray-700: #4b423a;
+  --color-gray-800: #352e28;
+  --color-gray-900: #27231e;
+  --color-gray-950: #17180f;
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+}
+
 @layer base {
   :root {
-    --primary-rose: #fce7eb;
-    --primary-rose-dark: #f43f5e;
-    --gold: #c59b27;
-    --gold-light: #fef9ed;
-    --gold-border: #e6ca65;
+    --primary-rose: #f3c8ba;
+    --primary-rose-dark: #80561f;
+    --gold: #a27332;
+    --gold-light: #fbf5e9;
+    --gold-border: #d4b576;
   }
 
   body {
-    background-color: #faf7f8;
-    color: #1e293b;
-    font-family:
-      system-ui,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      Roboto,
-      Oxygen,
-      Ubuntu,
-      Cantarell,
-      "Open Sans",
-      "Helvetica Neue",
-      sans-serif;
+    background-color: #fcf8f5;
+    color: #27231e;
+    font-family: var(--font-sans);
     margin: 0;
     padding: 0;
   }
@@ -65,7 +82,7 @@
   }
   button:focus-visible,
   a:focus-visible {
-    outline: 3px solid #be185d;
+    outline: 3px solid #80561f;
     outline-offset: 3px;
   }
   button:disabled {

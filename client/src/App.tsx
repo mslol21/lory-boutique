@@ -110,7 +110,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#faf7f8] flex flex-col font-sans selection:bg-rose-200 selection:text-rose-900">
+    <div className="min-h-screen bg-[#fcf8f5] flex flex-col font-sans selection:bg-brand-200 selection:text-brand-900">
       {/* Top Navbar */}
       <Navbar
         currentView={currentView}

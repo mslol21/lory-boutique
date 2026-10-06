@@ -96,7 +96,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               onClick={() => setPeriod("today")}
               className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
                 period === "today"
-                  ? "bg-rose-600 text-white shadow-xs"
+                  ? "bg-brand-600 text-white shadow-xs"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
@@ -106,7 +106,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               onClick={() => setPeriod("7days")}
               className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
                 period === "7days"
-                  ? "bg-rose-600 text-white shadow-xs"
+                  ? "bg-brand-600 text-white shadow-xs"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
@@ -116,7 +116,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               onClick={() => setPeriod("30days")}
               className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
                 period === "30days"
-                  ? "bg-rose-600 text-white shadow-xs"
+                  ? "bg-brand-600 text-white shadow-xs"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
@@ -150,7 +150,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {loading || !data ? (
         <div className="py-24 text-center">
-          <div className="w-8 h-8 border-3 border-rose-200 border-t-rose-600 rounded-full animate-spin mx-auto mb-2" />
+          <div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto mb-2" />
           <p className="text-xs text-gray-400">
             Carregando métricas da boutique...
           </p>
@@ -165,7 +165,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span className="text-xs font-bold uppercase tracking-wider">
                   Receita Líquida
                 </span>
-                <DollarSign className="w-5 h-5 text-rose-600" />
+                <DollarSign className="w-5 h-5 text-brand-600" />
               </div>
               <h3 className="text-2xl font-serif font-black text-gray-950">
                 {formatBRL(data.gross_revenue_cents)}
@@ -241,7 +241,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             {/* Payments breakdown */}
             <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-2xs">
               <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100">
-                <BarChart3 className="w-4 h-4 text-rose-600" />
+                <BarChart3 className="w-4 h-4 text-brand-600" />
                 <h3 className="text-sm font-bold text-gray-900">
                   Recebimentos líquidos por meio de pagamento
                 </h3>
@@ -298,7 +298,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-rose-500 rounded-full transition-all duration-500"
+                            className="h-full bg-brand-500 rounded-full transition-all duration-500"
                             style={{
                               width: `${Math.min(100, Math.max(0, pct))}%`,
                             }}
@@ -332,7 +332,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       className="py-2.5 flex items-center justify-between"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px] flex items-center justify-center">
+                        <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-800 font-bold text-[10px] flex items-center justify-center">
                           {idx + 1}
                         </span>
                         <span className="font-bold text-gray-900">
@@ -365,7 +365,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
               <button
                 onClick={onNavigateToProducts}
-                className="text-xs font-bold text-rose-600 hover:underline cursor-pointer"
+                className="text-xs font-bold text-brand-600 hover:underline cursor-pointer"
               >
                 Gerenciar no Estoque →
               </button>

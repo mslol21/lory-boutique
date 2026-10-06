@@ -36,16 +36,16 @@ export const Receipt: React.FC<ReceiptProps> = ({
 
   return (
     <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-100 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-brand-100 animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Toolbar (hidden when printing) */}
-        <div className="bg-rose-50 px-5 py-3 border-b border-rose-100 flex items-center justify-between print:hidden">
-          <span className="text-xs font-semibold uppercase tracking-wider text-rose-800">
+        <div className="bg-brand-50 px-5 py-3 border-b border-brand-100 flex items-center justify-between print:hidden">
+          <span className="text-xs font-semibold uppercase tracking-wider text-brand-800">
             Comprovante Não Fiscal
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-lg shadow-xs transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium rounded-lg shadow-xs transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               Imprimir
@@ -54,7 +54,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
               data-dialog-close
               aria-label="Fechar janela"
               onClick={onClose}
-              className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-brand-100 rounded-lg transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -207,7 +207,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
 
           {/* Footer note */}
           <div className="pt-3 text-center text-[10px] text-gray-500 space-y-1">
-            <p className="font-serif italic text-rose-900 font-semibold">
+            <p className="font-serif italic text-brand-900 font-semibold">
               Obrigada por escolher a Lory Boutique!
             </p>
             <p>Trocas com este comprovante em até 7 dias corridos.</p>

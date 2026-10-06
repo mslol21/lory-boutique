@@ -1,8 +1,9 @@
 import { Dialog } from "./Dialog";
+import { BrandLogo } from "./BrandLogo";
 import React, { useState } from "react";
 import { apiRequest, setAuthToken } from "../services/api";
 import { User } from "../types";
-import { Lock, AlertCircle, X } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -48,9 +49,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   return (
     <Dialog className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden border border-rose-100 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden border border-brand-100 animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="bg-gradient-to-r from-rose-100 via-rose-50 to-amber-50 p-6 text-center relative border-b border-rose-100">
+        <div className="bg-gradient-to-r from-brand-100 via-brand-50 to-amber-50 p-6 text-center relative border-b border-brand-100">
           <button
             data-dialog-close
             aria-label="Fechar janela"
@@ -59,9 +60,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="w-12 h-12 bg-white rounded-2xl mx-auto flex items-center justify-center shadow-xs text-rose-600 mb-3 border border-rose-200">
-            <Lock className="w-6 h-6" />
-          </div>
+          <BrandLogo className="w-24 h-24 mx-auto mb-4 ring-1 ring-brand-200 shadow-sm" />
           <h2 className="text-xl font-serif font-bold text-gray-900 tracking-tight">
             Área da Equipe
           </h2>
@@ -94,7 +93,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Seu usuário"
-              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-colors"
+              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors"
             />
           </div>
 
@@ -113,14 +112,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-colors"
+              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-medium text-sm rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-medium text-sm rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
           >
             {loading ? "Entrando..." : "Acessar Sistema"}
           </button>

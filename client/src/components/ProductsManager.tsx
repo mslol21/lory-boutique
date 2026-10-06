@@ -405,7 +405,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
           {isAdmin && (
             <button
               onClick={openNewProductModal}
-              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-2xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-2xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
               <span>Cadastrar Nova Peça</span>
@@ -423,7 +423,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar por nome, referência, SKU ou cor..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 text-xs rounded-xl border border-gray-200 focus:outline-hidden focus:border-rose-400"
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 text-xs rounded-xl border border-gray-200 focus:outline-hidden focus:border-brand-400"
           />
         </div>
 
@@ -479,11 +479,11 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                   return (
                     <tr
                       key={prod.id}
-                      className="hover:bg-rose-50/30 transition-colors"
+                      className="hover:bg-brand-50/30 transition-colors"
                     >
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-12 rounded-lg overflow-hidden bg-rose-50 shrink-0 border border-gray-200">
+                          <div className="w-10 h-12 rounded-lg overflow-hidden bg-brand-50 shrink-0 border border-gray-200">
                             {prod.images && prod.images[0] ? (
                               <img
                                 src={prod.images[0]}
@@ -567,7 +567,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
 
                       <td className="py-3.5 px-4 text-center">
                         {prod.is_showcase ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-100 text-brand-800">
                             Visível
                           </span>
                         ) : (
@@ -582,7 +582,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                           <button
                             onClick={() => editProduct(prod)}
                             aria-label={`Editar ${prod.name}`}
-                            className="p-2 text-rose-700"
+                            className="p-2 text-brand-700"
                           >
                             <Edit2 className="w-4 h-4" /> Editar
                           </button>
@@ -611,8 +611,8 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
       {/* New/Edit Product Modal */}
       {isProductModalOpen && (
         <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden border border-rose-100 animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-5 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden border border-brand-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 bg-brand-50 border-b border-brand-100 flex items-center justify-between">
               <h3 className="font-serif font-bold text-gray-900 text-lg">
                 {editingProductId
                   ? "Editar Peça e Grade"
@@ -644,7 +644,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="ex: Vestido Midi Canelado Manga Curta"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 focus:outline-hidden focus:border-rose-500"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 focus:outline-hidden focus:border-brand-500"
                   />
                 </div>
 
@@ -655,7 +655,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 focus:outline-hidden focus:border-rose-500"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 focus:outline-hidden focus:border-brand-500"
                   >
                     <option value="">Sem categoria</option>
                     {categories.map((c) => (
@@ -691,7 +691,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                     value={formReference}
                     onChange={(e) => setFormReference(e.target.value)}
                     placeholder="ex: VMD-001"
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 focus:outline-hidden focus:border-rose-500"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 focus:outline-hidden focus:border-brand-500"
                   />
                 </div>
 
@@ -704,7 +704,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                     value={formDesc}
                     onChange={(e) => setFormDesc(e.target.value)}
                     placeholder="Detalhes sobre o tecido, caimento, acabamento..."
-                    className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 focus:outline-hidden focus:border-rose-500"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 focus:outline-hidden focus:border-brand-500"
                   />
                 </div>
               </div>
@@ -831,7 +831,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                   <button
                     type="button"
                     onClick={addVariationRow}
-                    className="text-xs font-bold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-brand-600 hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Adicionar Variação
@@ -953,7 +953,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                   id="showcase_check"
                   checked={formIsShowcase}
                   onChange={(e) => setFormIsShowcase(e.target.checked)}
-                  className="rounded text-rose-600 focus:ring-rose-500"
+                  className="rounded text-brand-600 focus:ring-brand-500"
                 />
                 <label
                   htmlFor="showcase_check"
@@ -975,7 +975,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                 <button
                   type="submit"
                   disabled={saving || uploading}
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
                   Salvar Peça no Estoque
                 </button>
@@ -988,7 +988,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
       {/* Stock Movement Modal (Entrada, Saída, Ajuste de Inventário) */}
       {isStockModalOpen && stockTargetVariation && (
         <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-100 p-6">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-brand-100 p-6">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
               <div>
                 <h3 className="font-bold text-gray-900 text-base">
@@ -1081,7 +1081,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                 <button
                   type="submit"
                   disabled={saving || uploading}
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
                   Confirmar Movimentação
                 </button>
@@ -1094,7 +1094,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
       {/* Movement History Log Modal */}
       {isHistoryModalOpen && (
         <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-rose-100 p-6 flex flex-col max-h-[80vh]">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-brand-100 p-6 flex flex-col max-h-[80vh]">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
               <h3 className="font-bold text-gray-900 text-base">
                 Histórico de Movimentações de Estoque
