@@ -37,4 +37,5 @@ jobs:
         env:
           LORY_TEST_DATABASE_URL: postgresql://postgres:test-password-only@127.0.0.1:5432/lory_test
       - run: npm run test:ui
+      - run: npm run test:pwa
       - run: npm --prefix client run lint

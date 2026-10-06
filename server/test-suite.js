@@ -621,6 +621,47 @@ const { seedDatabase } = require("./seed");
         429,
       );
     });
+    await run("DELETE FROM login_attempts"); // New isolated login scenario after rate-limit checks.
+    await test("Gestão edita login, perfil e senha, revoga acesso antigo e protege conflitos", async () => {
+      const firstPassword = crypto.randomBytes(16).toString("hex"), nextPassword = crypto.randomBytes(16).toString("hex");
+      const created = await req("/auth/users", { name: "Gestão teste", username: "management-test", password: firstPassword, role: "attendant" });
+      assert.equal(created.status, 201);
+      const id = created.data.user.id;
+      const oldLogin = await req("/auth/login", { username: "management-test", password: firstPassword }, null);
+      assert.equal(oldLogin.status, 200);
+      const updated = await req(`/auth/users/${id}`, { name: "Nome editado", username: "management-renamed", role: "admin", password: nextPassword }, token, "PUT");
+      assert.equal(updated.status, 200); assert.equal(updated.data.username, "management-renamed");
+      assert.equal(updated.data.password_hash, undefined);
+      assert.equal((await req("/auth/me", null, oldLogin.data.token)).status, 401);
+      assert.equal((await req("/auth/login", { username: "management-renamed", password: firstPassword }, null)).status, 401);
+      const nextLogin = await req("/auth/login", { username: "management-renamed", password: nextPassword }, null);
+      assert.equal(nextLogin.status, 200); assert.equal(nextLogin.data.user.name, "Nome editado");
+      assert.equal((await req(`/auth/users/${id}`, { username: "test-admin" }, token, "PUT")).status, 409);
+      assert.equal((await get("SELECT username FROM users WHERE id=?", [id])).username, "management-renamed");
+      assert.equal((await req(`/auth/users/${id}`, { role: "attendant" }, nextLogin.data.token, "PUT")).status, 400);
+      const audit = await get("SELECT details FROM audit_logs WHERE entity_id=? AND action='UPDATE_USER'", [id]);
+      assert(!audit.details.includes(nextPassword));
+      assert.equal((await req(`/auth/users/${id}`, { name: "Proibido" }, att, "PUT")).status, 403);
+    });
+    await test("Categorias editáveis preservam vínculo e impedem alterações por atendente", async () => {
+      const category = await req("/products/categories", { name: "Categoria teste" });
+      assert.equal(category.status, 201);
+      const id = category.data.id;
+      const product = (await query("SELECT id FROM products LIMIT 1"))[0];
+      await run("UPDATE products SET category_id=? WHERE id=?", [id, product.id]);
+      assert.equal((await req(`/products/categories/${id}`, { name: "Categoria renomeada" }, token, "PUT")).status, 200);
+      assert.equal((await get("SELECT category_id FROM products WHERE id=?", [product.id])).category_id, id);
+      assert.equal((await req(`/products/categories/${id}`, { name: "Proibido" }, att, "PUT")).status, 403);
+      assert.equal((await req(`/products/categories/${id}`, { name: "" }, token, "PUT")).status, 400);
+    });
+    await test("Painel filtra período personalizado e rejeita intervalo invertido", async () => {
+      const result = await req("/reports/dashboard?period=custom&start_date=2000-01-01&end_date=2000-01-02");
+      assert.equal(result.status, 200); assert.equal(result.data.net_revenue_cents, 0); assert.equal(result.data.sales_count, 0);
+      assert.equal(result.data.start_date, "2000-01-01"); assert.equal(result.data.end_date, "2000-01-02");
+      assert.equal((await req("/reports/dashboard?period=custom&start_date=2000-01-02&end_date=2000-01-01")).status, 400);
+      const csv = await req("/reports/export/sales?start_date=2000-01-01&end_date=2000-01-02");
+      assert.equal(csv.status, 200); assert.equal(csv.data.split("\r\n").length, 1);
+    });
     console.log(
       `\n${passed} verificações aprovadas. Banco temporário removido.`,
     );

@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "Lory Boutique — PDV e Gestão",
+  "short_name": "Lory Boutique",
+  "description": "Vendas no balcão, estoque, caixa e gestão da Lory Boutique.",
+  "lang": "pt-BR",
+  "start_url": "/?app=1",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fcf8f5",
+  "theme_color": "#f3c8ba",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/lory-boutique-logo.png",
+      "sizes": "1080x1080",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "business",
+    "shopping"
+  ],
+  "prefer_related_applications": false
+}

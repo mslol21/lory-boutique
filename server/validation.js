@@ -25,6 +25,7 @@ function dateBounds(start, end) {
     new Date(d + "T12:00:00Z").toISOString().slice(0, 10) === d;
   if ((start && !valid(start)) || (end && !valid(end)))
     throw new Error("Data inválida.");
+  if (start && end && start > end) throw new Error("A data inicial deve ser anterior ou igual à final.");
   return {
     start: start ? new Date(start + "T00:00:00-03:00").toISOString() : null,
     end: end ? new Date(end + "T23:59:59.999-03:00").toISOString() : null,

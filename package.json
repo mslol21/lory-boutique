@@ -12,7 +12,8 @@
     "admin:create": "node server/create-admin.js",
     "backup": "node server/backup.js",
     "setup": "node server/setup.js",
-    "test:ui": "node server/ui-test-suite.js"
+    "test:ui": "node server/ui-test-suite.js",
+    "test:pwa": "node server/pwa-test-suite.js"
   },
   "keywords": [
     "boutique",

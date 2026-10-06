@@ -263,6 +263,38 @@ const nativeFetch = global.fetch;
         assert.match(document.body.textContent, /DOCUMENTO NÃO FISCAL/);
       },
     );
+    const { SettingsManager } = require(client + "/src/components/SettingsManager.tsx");
+    await render(React.createElement(SettingsManager, { settings: null, currentUser: login.user, onSettingsUpdated: () => {} }));
+    const teamTab = [...document.querySelectorAll("button")].find(b => b.textContent.includes("Equipe"));
+    assert.ok(teamTab);
+    await act(async () => teamTab.click()); await wait();
+    const editUser = document.querySelector('button[aria-label="Editar usuário Administrador"]') || [...document.querySelectorAll('button[aria-label]')].find(b => b.getAttribute('aria-label').startsWith('Editar usuário'));
+    assert.ok(editUser); await act(async () => editUser.click());
+    await check("Equipe abre edição com login preenchido e senha opcional vazia", () => {
+      assert.equal(document.getElementById("team-newUsername").value, "ui-admin");
+      assert.equal(document.getElementById("team-password").value, "");
+      assert.equal(document.getElementById("team-password").required, false);
+      assert.equal(document.getElementById("team-password").minLength, 12);
+    });
+    await act(async () => [...document.querySelectorAll("button")].find(b => b.textContent === "Cancelar").click());
+    await nativeFetch(base + "/api/products/categories", { method: "POST", headers: {"Content-Type":"application/json",Authorization:"Bearer " + login.token}, body: JSON.stringify({name:"Categoria UI"}) });
+    await act(async () => [...document.querySelectorAll("button")].find(b => b.textContent === "Categorias").click()); await wait();
+    await act(async () => [...document.querySelectorAll("button")].find(b => b.textContent === "Editar categoria Categoria UI").click());
+    await check("Categoria abre edição pelo identificador original", () => assert.equal(document.getElementById("category-name").value, "Categoria UI"));
+    const { Dashboard } = require(client + "/src/components/Dashboard.tsx");
+    global.fetch = (url, options) => String(url).includes("/reports/dashboard") ? Promise.reject(new Error("Falha de teste")) : nativeFetch(new URL(url, base), options);
+    await render(React.createElement(Dashboard, {currentUser:login.user, onNavigateToProducts:()=>{}})); await wait();
+    await check("Painel com falha oferece retentativa sem carregamento infinito", () => {
+      assert.match(document.body.textContent, /Falha de teste/);
+      assert.doesNotMatch(document.body.textContent, /Carregando métricas/);
+    });
+    global.fetch = (url, options) => nativeFetch(new URL(url, base), options);
+    await act(async () => [...document.querySelectorAll("button")].find(b => b.textContent === "Atualizar painel").click()); await wait();
+    await check("Painel recupera indicadores e oferece filtro de datas", () => {
+      assert.match(document.body.textContent, /Receita Líquida/);
+      assert.ok(document.getElementById("report-start"));
+      assert.ok(document.getElementById("report-end"));
+    });
     console.log(
       `\n${checks} testes de componentes aprovados em DOM simulado (sem validação visual).`,
     );

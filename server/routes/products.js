@@ -157,6 +157,23 @@ router.post(
     }
   },
 );
+router.put("/categories/:id", authenticate, requireRole("admin"), async (req, res) => {
+  try {
+    const category = await transaction(async () => {
+      if (!(await get("SELECT id FROM categories WHERE id=?", [req.params.id])))
+        throw Object.assign(new Error("Categoria não encontrada."), { status: 404 });
+      const name = text(req.body.name, "Categoria", 100);
+      if (await get("SELECT id FROM categories WHERE name=? AND id!=?", [name, req.params.id]))
+        throw Object.assign(new Error("Categoria já existe."), { status: 409 });
+      await run("UPDATE categories SET name=? WHERE id=?", [name, req.params.id]);
+      await logAudit(req.user.id, "UPDATE_CATEGORY", "category", req.params.id, { name });
+      return await get("SELECT * FROM categories WHERE id=?", [req.params.id]);
+    });
+    res.json(category);
+  } catch (error) {
+    res.status(error.status || (error.databaseFailure ? 503 : 400)).json({ error: error.databaseFailure ? "Conexão interrompida. Tente novamente." : error.message });
+  }
+});
 router.post(
   "/images/upload",
   authenticate,

@@ -358,7 +358,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                   Retirada na Loja
                 </h4>
                 <p className="text-[11px] text-gray-500 leading-snug">
-                  Rua Hipólito de Camargo, 45 — Guaianases
+                  {settings?.address || "Rua Hipólito de Camargo, 45 — Guaianases"}
                 </p>
               </div>
             </div>
@@ -1046,8 +1046,7 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               </span>
             </div>
             <p className="text-xs text-gray-500 leading-relaxed max-w-sm">
-              Moda feminina com sofisticação e caimento perfeito. Atendimento
-              presencial no balcão e consulta online.
+              {settings?.segment || "Moda feminina"} com sofisticação. Atendimento presencial no balcão e consulta online.
             </p>
           </div>
 
@@ -1066,6 +1065,9 @@ export const Showcase: React.FC<ShowcaseProps> = ({
               <p className="text-[11px] text-gray-400 pl-6">
                 Retirada exclusiva na loja física.
               </p>
+              {settings?.business_hours && <p className="pl-6">Horário: {settings.business_hours}</p>}
+              {settings?.cep && <p className="pl-6">CEP: {settings.cep}</p>}
+              {settings?.cnpj && <p className="pl-6">CNPJ: {settings.cnpj}</p>}
             </div>
           </div>
 

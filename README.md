@@ -135,3 +135,28 @@ Nenhuma chave privada acompanha esse certificado.
 executa a suíte com um PostgreSQL 17 descartável em localhost através de
 `LORY_TEST_DATABASE_URL`; bancos remotos são rejeitados nesse modo. Para backup
 online, use `pg_dump`/backups do Supabase. `npm run backup` é apenas para SQLite.
+
+
+## Gestão no painel
+
+- **Produtos e estoque:** cadastro/edição, preços, custos, fotos, tamanhos, cores, estoque mínimo, entrada/ajuste com histórico e arquivamento.
+- **Categorias:** criar e renomear em Ajustes → Categorias sem perder produtos vinculados.
+- **Equipe:** criar, editar nome/login/perfil, redefinir senha e ativar/desativar acessos. Senha vazia na edição preserva a atual. Alterações revogam sessões anteriores; ao editar o próprio usuário, entre novamente. Não é permitido remover o próprio acesso de administrador nem deixar a loja sem administrador ativo.
+- **Loja:** nome, endereço, WhatsApp, Instagram, CNPJ, CEP e horários. Dados opcionais preenchidos aparecem na vitrine.
+- **Painel:** hoje, últimos 7/30 dias ou datas personalizadas; receita líquida, ticket, margem estimada, recebimentos e alertas. Exportação de vendas segue o período selecionado; estoque exporta a posição atual.
+- **Vendas e caixa:** pagamentos, descontos conforme permissão, abertura/fechamento, suprimentos/sangrias, devoluções e trocas. Vendas concluídas preservam o histórico; correções financeiras passam por cancelamento/devolução/troca.
+
+O escopo é PDV e estoque de uma loja. Não inclui contas a pagar/receber independentes, compras de fornecedores, folha de pagamento ou emissão de nota fiscal.
+
+## Aplicativo para computador e celular (PWA)
+
+Abra https://loryboutique.vercel.app e toque em **Instalar app**.
+No computador, use Chrome/Edge; no Android, Chrome; no iPhone/iPad,
+Safari → Compartilhar → Adicionar à Tela de Início. A disponibilidade da
+instalação automática depende do navegador. O app abre em janela própria,
+usa a logo da boutique e mantém o mesmo login e banco do site.
+
+O service worker guarda somente a interface e os recursos estáticos.
+APIs, sessões e operações comerciais não são armazenadas no cache do app.
+Vendas, caixa e alterações de estoque exigem internet; não há sincronização
+posterior de vendas offline. Ao receber uma atualização, feche e abra o app.

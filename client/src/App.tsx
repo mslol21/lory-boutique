@@ -10,6 +10,7 @@ import { SalesManager } from "./components/SalesManager";
 import { Dashboard } from "./components/Dashboard";
 import { SettingsManager } from "./components/SettingsManager";
 import { LoginModal } from "./components/LoginModal";
+import { InstallApp } from "./components/InstallApp";
 
 export function App() {
   const [currentView, setCurrentView] = useState<
@@ -167,12 +168,15 @@ export function App() {
 
         {currentView === "settings" && (
           <SettingsManager
+            currentUser={currentUser}
+            onOwnAccessUpdated={handleLogout}
             settings={settings}
             onSettingsUpdated={fetchSettings}
           />
         )}
       </main>
 
+      <InstallApp />
       {/* Login Modal */}
       <LoginModal
         isOpen={isLoginModalOpen}

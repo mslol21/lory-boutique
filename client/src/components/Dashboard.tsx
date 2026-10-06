@@ -11,6 +11,7 @@ import {
   Award,
   Layers,
   Calendar,
+  RefreshCw,
   Sparkles,
   BarChart3,
   CreditCard,
@@ -28,28 +29,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onNavigateToProducts,
 }) => {
   const isAdmin = currentUser?.role === "admin";
-  const [period, setPeriod] = useState<"today" | "7days" | "30days">("today");
+  const [period, setPeriod] = useState<"today" | "7days" | "30days" | "custom">("today");
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [range, setRange] = useState({ start: today, end: today });
+  const [refresh, setRefresh] = useState(0);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiRequest(`/reports/dashboard?period=${period}`);
-      setData(res);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchDashboardData();
-  }, [period]);
-
+    let active = true;
+    setLoading(true); setError(null);
+    const query = period === "custom" ? `period=custom&start_date=${range.start}&end_date=${range.end}` : `period=${period}`;
+    apiRequest(`/reports/dashboard?${query}`).then(res => {
+      if (active) setData(res);
+    }).catch((err: Error) => {
+      if (active) { setData(null); setError(err.message); }
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [period, range.start, range.end, refresh]);
+  const applyRange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!startDate || !endDate || startDate > endDate) {
+      setError("Informe um intervalo de datas válido."); return;
+    }
+    setRange({ start: startDate, end: endDate }); setPeriod("custom"); setRefresh(v => v + 1);
+  };
   const downloadCSV = async (endpoint: string, filename: string) => {
     try {
       const content = await apiRequest<string>(endpoint);
@@ -66,7 +73,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
   const handleExportSales = () =>
-    downloadCSV("/reports/export/sales", "vendas_lory_boutique.csv");
+    downloadCSV(`/reports/export/sales?start_date=${data.start_date}&end_date=${data.end_date}`, "vendas_lory_boutique.csv");
   const handleExportInventory = () =>
     downloadCSV("/reports/export/inventory", "estoque_lory_boutique.csv");
 
@@ -124,10 +131,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </button>
           </div>
 
+          <button onClick={() => setRefresh(v => v + 1)} disabled={loading} className="flex items-center gap-1.5 bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs font-semibold"><RefreshCw className="w-4 h-4" />Atualizar painel</button>
           {/* Export CSV (Admin only) */}
           {isAdmin && (
             <div className="flex items-center gap-1.5">
               <button
+                disabled={loading || !data}
                 onClick={handleExportSales}
                 className="px-3 py-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-2xl text-xs font-semibold text-gray-700 shadow-2xs flex items-center gap-1.5 cursor-pointer"
                 title="Exportar Vendas para Excel / CSV"
@@ -148,13 +157,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {loading || !data ? (
+      <form onSubmit={applyRange} className="bg-white border border-gray-200 rounded-2xl p-3 flex flex-wrap gap-3 items-end text-xs">
+        <div><label htmlFor="report-start" className="block font-semibold mb-1">Data inicial</label><input id="report-start" type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} className="border border-gray-300 rounded-xl px-3 py-2" /></div>
+        <div><label htmlFor="report-end" className="block font-semibold mb-1">Data final</label><input id="report-end" type="date" required min={startDate} value={endDate} onChange={e => setEndDate(e.target.value)} className="border border-gray-300 rounded-xl px-3 py-2" /></div>
+        <button className="bg-brand-600 text-white font-semibold rounded-xl px-4 py-2">Aplicar período</button>
+        {data && !loading && <p role="status" className="text-gray-600 py-2">Período: {data.start_date.split("-").reverse().join("/")} a {data.end_date.split("-").reverse().join("/")}</p>}
+      </form>
+      {loading ? (
         <div className="py-24 text-center">
           <div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto mb-2" />
           <p className="text-xs text-gray-400">
             Carregando métricas da boutique...
           </p>
         </div>
+      ) : !data ? (
+        <p className="bg-white rounded-2xl p-5 text-gray-600">Não foi possível carregar os indicadores. Use Atualizar painel para tentar novamente.</p>
       ) : (
         <div className="space-y-6">
           {/* Main Financial KPI Grid */}
@@ -168,10 +185,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <DollarSign className="w-5 h-5 text-brand-600" />
               </div>
               <h3 className="text-2xl font-serif font-black text-gray-950">
-                {formatBRL(data.gross_revenue_cents)}
+                {formatBRL(data.net_revenue_cents)}
               </h3>
               <p className="text-[11px] text-gray-500 mt-1">
-                Total bruto vendido no período
+                Vendas do período, descontadas as devoluções; cancelamentos excluídos
               </p>
             </div>
 

@@ -23,7 +23,7 @@ function filter(req) {
 router.get("/dashboard", authenticate, async (req, res) => {
   try {
     const period = req.query.period ?? "today";
-    if (!["today", "7days", "30days"].includes(period))
+    if (!["today", "7days", "30days", "custom"].includes(period))
       throw new Error("Período inválido.");
     const today = todaySP(),
       start = new Date(today + "T12:00:00-03:00");
@@ -31,8 +31,12 @@ router.get("/dashboard", authenticate, async (req, res) => {
       start.getUTCDate() -
         (period === "today" ? 0 : period === "7days" ? 6 : 29),
     );
-    const startISO = dateBounds(start.toISOString().slice(0, 10), today).start,
-      endISO = dateBounds(null, today).end;
+    if (period === "custom" && (!req.query.start_date || !req.query.end_date))
+      throw new Error("Informe as datas inicial e final.");
+    const range = period === "custom"
+      ? dateBounds(req.query.start_date, req.query.end_date)
+      : dateBounds(start.toISOString().slice(0, 10), today);
+    const startISO = range.start, endISO = range.end;
     const sales = await query(
       "SELECT * FROM sales WHERE status!='cancelled' AND created_at BETWEEN ? AND ?",
       [startISO, endISO],
@@ -84,6 +88,8 @@ router.get("/dashboard", authenticate, async (req, res) => {
     );
     res.json({
       period,
+      start_date: startISO.slice(0, 10),
+      end_date: period === "custom" ? req.query.end_date : today,
       sales_count: count,
       gross_revenue_cents: revenue,
       net_revenue_cents: revenue,

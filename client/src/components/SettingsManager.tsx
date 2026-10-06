@@ -1,6 +1,6 @@
 import { Dialog } from "./Dialog";
 import React, { useState, useEffect } from "react";
-import { StoreSettings, User } from "../types";
+import { StoreSettings, User, Category } from "../types";
 import { apiRequest } from "../services/api";
 import {
   Settings,
@@ -19,13 +19,22 @@ import {
 interface SettingsManagerProps {
   settings: StoreSettings | null;
   onSettingsUpdated: () => void;
+  currentUser?: User | null;
+  onOwnAccessUpdated?: () => void;
 }
 
 export const SettingsManager: React.FC<SettingsManagerProps> = ({
   settings,
   onSettingsUpdated,
+  currentUser,
+  onOwnAccessUpdated,
 }) => {
-  const [activeTab, setActiveTab] = useState<"store" | "users">("store");
+  const [activeTab, setActiveTab] = useState<"store" | "users" | "categories">("store");
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryName, setCategoryName] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
@@ -80,7 +89,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       const res = await apiRequest<User[]>("/auth/users");
       setUsers(res);
     } catch (err: any) {
-      console.error(err);
+      showToast("error", err.message || "Não foi possível carregar a equipe.");
     } finally {
       setLoadingUsers(false);
     }
@@ -99,6 +108,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
 
   const handleSaveStoreSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       await apiRequest("/settings", {
         method: "PUT",
@@ -120,29 +131,36 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       onSettingsUpdated();
     } catch (err: any) {
       showToast("error", err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
-      await apiRequest("/auth/users", {
-        method: "POST",
+      await apiRequest(editingUser ? `/auth/users/${editingUser.id}` : "/auth/users", {
+        method: editingUser ? "PUT" : "POST",
         body: JSON.stringify({
           name: newName,
           username: newUsername,
-          password: newPassword,
+          ...(newPassword ? { password: newPassword } : {}),
           role: newRole,
         }),
       });
-      showToast("success", "Novo usuário criado com sucesso!");
+      showToast("success", editingUser ? "Usuário atualizado. Os acessos anteriores foram encerrados." : "Novo usuário criado com sucesso!");
       setIsNewUserModalOpen(false);
       setNewName("");
       setNewUsername("");
       setNewPassword("");
-      fetchUsers();
+      if (editingUser?.id === currentUser?.id) onOwnAccessUpdated?.();
+      else fetchUsers();
     } catch (err: any) {
       showToast("error", err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -163,6 +181,32 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
     }
   };
 
+  const openUserForm = (user: User | null) => {
+    setEditingUser(user);
+    setNewName(user?.name || "");
+    setNewUsername(user?.username || "");
+    setNewRole(user?.role || "attendant");
+    setNewPassword("");
+    setIsNewUserModalOpen(true);
+  };
+  const fetchCategories = async () => {
+    try { setCategories(await apiRequest<Category[]>("/products/categories")); }
+    catch (err: any) { showToast("error", err.message); }
+  };
+  useEffect(() => { if (activeTab === "categories") fetchCategories(); }, [activeTab]);
+  const saveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    try {
+      await apiRequest(editingCategory ? `/products/categories/${editingCategory.id}` : "/products/categories", {
+        method: editingCategory ? "PUT" : "POST", body: JSON.stringify({ name: categoryName }),
+      });
+      setEditingCategory(null); setCategoryName(""); await fetchCategories();
+      showToast("success", "Categoria salva. Os produtos vinculados foram preservados.");
+    } catch (err: any) { showToast("error", err.message); }
+    finally { setSaving(false); }
+  };
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 text-xs">
       {/* Toast */}
@@ -174,7 +218,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
               : "bg-red-900 text-white"
           }`}
         >
-          <span>{notification.message}</span>
+          <span role="status">{notification.message}</span>
         </div>
       )}
 
@@ -206,7 +250,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200 pb-2">
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
         <button
           onClick={() => setActiveTab("store")}
           className={`px-4 py-2 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-2 ${
@@ -230,6 +274,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
           <Users className="w-4 h-4" />
           <span>Equipe & Usuários</span>
         </button>
+      <button onClick={() => setActiveTab("categories")} className={`px-4 py-2 rounded-xl font-bold ${activeTab === "categories" ? "bg-brand-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}>Categorias</button>
       </div>
 
       {/* Store Tab Form */}
@@ -401,7 +446,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
               Usuários Cadastrados
             </h3>
             <button
-              onClick={() => setIsNewUserModalOpen(true)}
+              onClick={() => openUserForm(null)}
               className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -409,8 +454,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
             </button>
           </div>
 
-          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xs overflow-hidden">
-            <table className="w-full text-left text-xs">
+          {loadingUsers && <p role="status">Carregando equipe...</p>}
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xs overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-xs">
               <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase font-bold text-[10px]">
                 <tr>
                   <th className="py-3 px-4">Nome</th>
@@ -453,8 +499,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
+                      <button onClick={() => openUserForm(u)} aria-label={`Editar usuário ${u.name}`} className="px-2 py-1 text-brand-700 font-bold rounded-lg hover:bg-brand-50">Editar</button>
                       <button
                         onClick={() => handleToggleUserActive(u)}
+                        disabled={u.id === currentUser?.id}
                         className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                           u.active === 1
                             ? "text-gray-400 hover:text-red-600 hover:bg-red-50"
@@ -481,25 +529,39 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
         </div>
       )}
 
+      {activeTab === "categories" && (
+        <div className="bg-white rounded-3xl p-5 border border-gray-200 space-y-4">
+          <h3 className="font-bold text-gray-900">Categorias de produtos</h3>
+          <form onSubmit={saveCategory} className="flex flex-wrap gap-2 items-end">
+            <div className="flex-1 min-w-40"><label htmlFor="category-name" className="block font-semibold mb-1">{editingCategory ? "Editar categoria" : "Nova categoria"}</label>
+              <input id="category-name" required maxLength={100} value={categoryName} onChange={e => setCategoryName(e.target.value)} className="w-full border border-gray-300 rounded-xl px-3 py-2" /></div>
+            <button disabled={saving} className="bg-brand-600 text-white rounded-xl px-4 py-2 font-bold">{saving ? "Salvando..." : "Salvar categoria"}</button>
+            {editingCategory && <button type="button" onClick={() => { setEditingCategory(null); setCategoryName(""); }} className="px-3 py-2">Cancelar</button>}
+          </form>
+          {!categories.length && <p className="text-gray-500">Nenhuma categoria cadastrada.</p>}
+          <ul className="divide-y divide-gray-100">{categories.map(c => <li key={c.id} className="flex justify-between items-center py-3 gap-3"><span>{c.name}</span><button className="text-brand-700 font-bold px-3 py-1" onClick={() => { setEditingCategory(c); setCategoryName(c.name); }}>Editar categoria {c.name}</button></li>)}</ul>
+        </div>
+      )}
       {/* New User Modal */}
       {isNewUserModalOpen && (
         <Dialog className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-brand-100">
             <h3 className="font-bold text-gray-900 text-base mb-1">
-              Cadastrar Usuário da Equipe
+              {editingUser ? "Editar Usuário da Equipe" : "Cadastrar Usuário da Equipe"}
             </h3>
             <p className="text-xs text-gray-500 mb-4">
-              Crie acesso para atendentes da loja ou novo administrador
+              {editingUser ? "Altere os dados e o perfil. Deixe a senha vazia para manter a atual." : "Crie acesso para atendentes da loja ou novo administrador"}
             </p>
 
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
-                <label className="block font-bold text-gray-700 mb-1">
+                <label htmlFor="team-newName" className="block font-bold text-gray-700 mb-1">
                   Nome Completo *
                 </label>
                 <input
                   type="text"
                   required
+                  id="team-newName"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Nome do colaborador"
@@ -508,12 +570,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1">
+                <label htmlFor="team-newUsername" className="block font-bold text-gray-700 mb-1">
                   Login de Usuário *
                 </label>
                 <input
                   type="text"
                   required
+                  id="team-newUsername"
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
                   placeholder="Usuário do colaborador"
@@ -522,13 +585,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Senha de Acesso *
+                <label htmlFor="team-password" className="block font-bold text-gray-700 mb-1">
+                  {editingUser ? "Nova senha (opcional)" : "Senha de Acesso *"}
                 </label>
                 <input
                   type="password"
-                  required
+                  required={!editingUser}
+                  autoComplete="new-password"
+                  maxLength={200}
                   minLength={12}
+                  id="team-password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="••••••••"
@@ -537,10 +603,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1">
+                <label htmlFor="team-newRole" className="block font-bold text-gray-700 mb-1">
                   Perfil de Acesso *
                 </label>
                 <select
+                  id="team-newRole"
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value as any)}
                   className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 font-semibold"
@@ -555,16 +622,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsNewUserModalOpen(false)}
+                  disabled={saving}
+                  onClick={() => { setIsNewUserModalOpen(false); setNewPassword(""); }}
                   className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl font-bold cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
+                  disabled={saving}
                   className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
-                  Criar Usuário
+                  {saving ? "Salvando..." : editingUser ? "Salvar Alterações" : "Criar Usuário"}
                 </button>
               </div>
             </form>

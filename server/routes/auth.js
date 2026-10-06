@@ -136,49 +136,33 @@ router.put(
   requireRole("admin"),
   async (req, res) => {
     try {
-      const user = await get("SELECT * FROM users WHERE id=?", [req.params.id]);
-      if (!user)
-        return res.status(404).json({
-          error: "Usuário não encontrado.",
-        });
-      const role = req.body.role ?? user.role,
-        active = req.body.active ?? user.active;
-      if (!["admin", "attendant"].includes(role) || ![0, 1].includes(active))
-        throw new Error("Perfil ou status inválido.");
-      if (user.id === req.user.id && (!active || role !== "admin"))
-        throw new Error(
-          "Não é possível remover seu próprio acesso de administrador.",
-        );
-      const password = req.body.password;
-      if (
-        password !== undefined &&
-        (typeof password !== "string" || password.length < 12)
-      )
-        throw new Error("A senha deve ter ao menos 12 caracteres.");
-      await transaction(
-        async () =>
-          await run(
-            "UPDATE users SET name=?,role=?,active=?,password_hash=?,token_version=token_version+1 WHERE id=?",
-            [
-              req.body.name ? text(req.body.name, "Nome", 100) : user.name,
-              role,
-              active,
-              password ? bcrypt.hashSync(password, 12) : user.password_hash,
-              user.id,
-            ],
-          ),
-      );
-      await logAudit(req.user.id, "UPDATE_USER", "user", user.id, {
-        role,
-        active,
+      const updated = await transaction(async () => {
+        const user = await get("SELECT * FROM users WHERE id=?", [req.params.id]);
+        if (!user) throw Object.assign(new Error("Usuário não encontrado."), { status: 404 });
+        const role = req.body.role ?? user.role, active = req.body.active ?? user.active;
+        if (!["admin", "attendant"].includes(role) || ![0, 1].includes(active))
+          throw new Error("Perfil ou status inválido.");
+        if (user.id === req.user.id && (!active || role !== "admin"))
+          throw new Error("Não é possível remover seu próprio acesso de administrador.");
+        if (user.role === "admin" && user.active && (!active || role !== "admin")) {
+          const others = await get("SELECT COUNT(*) AS n FROM users WHERE role='admin' AND active=1 AND id!=?", [user.id]);
+          if (!others.n) throw new Error("Mantenha pelo menos um administrador ativo.");
+        }
+        const username = req.body.username === undefined ? user.username : text(req.body.username, "Usuário", 80).toLowerCase();
+        if (await get("SELECT id FROM users WHERE username=? AND id!=?", [username, user.id]))
+          throw Object.assign(new Error("Usuário já existe."), { status: 409 });
+        const password = req.body.password === undefined ? undefined : text(req.body.password, "Senha", 200);
+        if (password !== undefined && (typeof password !== "string" || password.length < 12 || password.length > 200))
+          throw new Error("A senha deve ter entre 12 e 200 caracteres.");
+        const name = req.body.name === undefined ? user.name : text(req.body.name, "Nome", 100);
+        await run("UPDATE users SET name=?,username=?,role=?,active=?,password_hash=?,token_version=token_version+1 WHERE id=?",
+          [name, username, role, active, password ? bcrypt.hashSync(password, 12) : user.password_hash, user.id]);
+        await logAudit(req.user.id, "UPDATE_USER", "user", user.id, { name, username, role, active, password_changed: password !== undefined });
+        return await get("SELECT id,name,username,role,active FROM users WHERE id=?", [user.id]);
       });
-      return res.json(
-        await get("SELECT id,name,username,role,active FROM users WHERE id=?", [
-          user.id,
-        ]),
-      );
+      return res.json(updated);
     } catch (error) {
-      return res.status(error.databaseFailure ? 503 : 400).json({
+      return res.status(error.status || (error.databaseFailure ? 503 : 400)).json({
         error: error.databaseFailure
           ? "Conexão interrompida. Tente novamente com a mesma operação."
           : error.message,
