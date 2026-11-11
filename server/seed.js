@@ -14,6 +14,21 @@ async function seedDatabase() {
     throw new Error(
       "Banco remoto marcado como demonstração. Revise os dados antes de continuar.",
     );
+  // Serverless instances start independently. Avoid rewriting store settings and
+  // acquiring the global transaction lock on every cold start after provisioning.
+  // Keep the normal seed path for a fresh database or an unprovisioned admin.
+  if (isPostgres && !demo) {
+    const existingStore = await get(
+      "SELECT value FROM store_settings WHERE key='store_name'",
+    );
+    const adminUsername = process.env.ADMIN_PASSWORD
+      ? (process.env.ADMIN_USERNAME || "admin").trim().toLowerCase()
+      : null;
+    const existingAdmin = adminUsername
+      ? await get("SELECT id FROM users WHERE username=?", [adminUsername])
+      : true;
+    if (existingStore && existingAdmin) return;
+  }
   if (demo) {
     // One-time conversion of the old, explicitly marked demonstration database.
     const backupPath = path.join(
