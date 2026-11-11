@@ -59,7 +59,7 @@ function imageURLs(values) {
     if (
       typeof value !== "string" ||
       value.length > 2000 ||
-      (!value.startsWith("/uploads/") && !/^https:\/\//.test(value))
+      (!value.startsWith("/uploads/") && !/^\/illustrations\/[a-z0-9-]+\.svg$/.test(value) && !/^https:\/\//.test(value))
     )
       throw new Error("Use fotos enviadas ou URLs HTTPS válidas.");
     return value;
