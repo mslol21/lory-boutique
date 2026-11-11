@@ -7,6 +7,37 @@ const { get, query, run, transaction, getDbPath } = require("../db");
 const { authenticate, requireRole, logAudit } = require("../middleware/auth");
 const { integer, text } = require("../validation");
 const { stock } = require("../commerce");
+// Stable, human-readable product references. The category is captured when
+// the product is created; changing the category never renumbers existing items.
+const CATEGORY_PREFIXES = {
+  "Roupas Femininas": "FEM",
+  "Roupas Masculinas": "MAS",
+  "Roupas Infantis Masculinas": "INM",
+  "Roupas Infantis Femininas": "INF",
+  "Calçados": "CAL",
+  "Produtos Variados": "VAR",
+};
+async function nextProductReference(categoryId) {
+  const category = categoryId
+    ? await get("SELECT name FROM categories WHERE id=?", [categoryId])
+    : null;
+  const prefix = CATEGORY_PREFIXES[category?.name] || "GER";
+  const stem = `LB-${prefix}-`;
+  const rows = await query(
+    "SELECT reference FROM products WHERE reference LIKE ?",
+    [stem + "%"],
+  );
+  let highest = 0;
+  for (const { reference } of rows) {
+    const suffix = String(reference || "").slice(stem.length);
+    if (String(reference).startsWith(stem) && /^\\d+$/.test(suffix)) {
+      highest = Math.max(highest, Number(suffix));
+    }
+  }
+  if (!Number.isSafeInteger(highest) || highest >= 999999)
+    throw new Error("Limite de referências atingido para a categoria.");
+  return stem + String(highest + 1).padStart(4, "0");
+}
 async function view(p, role) {
   const result = {
     ...p,
@@ -319,6 +350,11 @@ async function save(req, res, update) {
       const p = await validateProduct(req.body, existing),
         id = existing?.id ?? randomUUID(),
         now = new Date().toISOString();
+      // References are generated on the server and immutable after creation.
+      // Never trust a browser-supplied reference, which could cause duplicates.
+      p.reference = existing
+        ? existing.reference || await nextProductReference(existing.category_id || p.category)
+        : await nextProductReference(p.category);
       if (existing)
         await run(
           "UPDATE products SET name=?,description=?,category_id=?,reference=?,cost_price_cents=?,sale_price_cents=?,promo_price_cents=?,images=?,is_showcase=?,updated_at=? WHERE id=?",
