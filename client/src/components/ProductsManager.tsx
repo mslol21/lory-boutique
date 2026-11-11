@@ -78,7 +78,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
       stock: number;
       min_stock: number;
     }[]
-  >([{ size: "", color: "", sku: "", barcode: "", stock: 0, min_stock: 1 }]);
+  >([{ size: "Único", color: "Padrão", sku: "", barcode: "", stock: 0, min_stock: 1 }]);
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -128,7 +128,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
     setFormImages([]);
     setFormIsShowcase(true);
     setFormVariations([
-      { size: "", color: "", sku: "", barcode: "", stock: 0, min_stock: 1 },
+      { size: "Único", color: "Padrão", sku: "", barcode: "", stock: 0, min_stock: 1 },
     ]);
     setIsProductModalOpen(true);
   };
@@ -147,7 +147,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
     setFormImages(p.images);
     setFormIsShowcase(Boolean(p.is_showcase));
     setFormVariations(
-      p.variations.map((v) => ({
+      (p.variations.length ? p.variations : [{ size: "Único", color: "Padrão", sku: "", barcode: "", stock: 0, min_stock: 1 }]).map((v) => ({
         ...v,
         sku: v.sku || "",
         barcode: v.barcode || "",
@@ -209,7 +209,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
   const addVariationRow = () => {
     setFormVariations([
       ...formVariations,
-      { size: "", color: "", sku: "", barcode: "", stock: 0, min_stock: 1 },
+      { size: "Único", color: "Padrão", sku: "", barcode: "", stock: 0, min_stock: 1 },
     ]);
   };
 
@@ -822,128 +822,38 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                 </div>
               </div>
 
-              {/* Variations Grid */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-gray-700">
-                    Grade de Tamanhos & Cores (Estoque Independente)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addVariationRow}
-                    className="text-xs font-bold text-brand-600 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Adicionar Variação
-                  </button>
+              {/* Simple per-product inventory: no size/color selection at the counter. */}
+              <div className="rounded-2xl bg-brand-50 border border-brand-200 p-4 space-y-3">
+                <div>
+                  <h3 className="font-bold text-gray-900">Estoque do produto</h3>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Uma quantidade total por produto e preço cadastrado. Não é necessário informar tamanho ou cor.
+                  </p>
                 </div>
-
-                <div className="space-y-2">
-                  {formVariations.map((v, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 bg-gray-50 rounded-2xl border border-gray-200 grid grid-cols-2 sm:grid-cols-6 gap-2 items-center"
-                    >
-                      <div>
-                        <label className="text-[10px] text-gray-500 block">
-                          Tamanho *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={v.size}
-                          onChange={(e) =>
-                            updateVariationRow(idx, "size", e.target.value)
-                          }
-                          placeholder="P, M, G, 38..."
-                          className="w-full px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-gray-500 block">
-                          Cor *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={v.color}
-                          onChange={(e) =>
-                            updateVariationRow(idx, "color", e.target.value)
-                          }
-                          placeholder="Rosa, Preto..."
-                          className="w-full px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-gray-500 block">
-                          SKU
-                        </label>
-                        <input
-                          type="text"
-                          value={v.sku}
-                          onChange={(e) =>
-                            updateVariationRow(idx, "sku", e.target.value)
-                          }
-                          placeholder="SKU-001"
-                          className="w-full px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-gray-500 block">
-                          Estoque Inicial
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          disabled={Boolean(v.id)}
-                          value={v.stock}
-                          onChange={(e) =>
-                            updateVariationRow(
-                              idx,
-                              "stock",
-                              parseInt(e.target.value) || 0,
-                            )
-                          }
-                          className="w-full px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs font-bold"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-gray-500 block">
-                          Estoque Mín.
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={v.min_stock}
-                          onChange={(e) =>
-                            updateVariationRow(
-                              idx,
-                              "min_stock",
-                              parseInt(e.target.value) || 0,
-                            )
-                          }
-                          className="w-full px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs"
-                        />
-                      </div>
-
-                      <div className="flex justify-end pt-3">
-                        <button
-                          type="button"
-                          disabled={Boolean(v.id)}
-                          aria-label="Remover variação"
-                          onClick={() => removeVariationRow(idx)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {!editingProductId ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-xs font-semibold text-gray-700">
+                      Quantidade inicial
+                      <input type="number" min="0" step="1"
+                        value={formVariations[0]?.stock ?? 0}
+                        onChange={(e) => updateVariationRow(0, "stock", Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        className="mt-1 w-full rounded-xl border border-gray-300 p-3 bg-white text-base font-bold" />
+                    </label>
+                    <label className="text-xs font-semibold text-gray-700">
+                      Aviso de estoque mínimo
+                      <input type="number" min="0" step="1"
+                        value={formVariations[0]?.min_stock ?? 1}
+                        onChange={(e) => updateVariationRow(0, "min_stock", Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        className="mt-1 w-full rounded-xl border border-gray-300 p-3 bg-white text-base font-bold" />
+                    </label>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-800">
+                    Estoque atual: <strong>{formVariations.reduce((sum, v) => sum + v.stock, 0)} unidades</strong>.
+                    Para acrescentar, corrigir ou retirar quantidades, utilize <strong>Movimentar Estoque</strong>
+                    na lista de produtos. Isso preserva o histórico de alterações.
+                  </p>
+                )}
               </div>
 
               {/* Showcase visibility checkbox */}
