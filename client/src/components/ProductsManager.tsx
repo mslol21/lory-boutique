@@ -689,8 +689,8 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
                   <input
                     type="text"
                     value={formReference}
-                    onChange={(e) => setFormReference(e.target.value)}
-                    placeholder="ex: VMD-001"
+                    readOnly
+                    placeholder="Gerado automaticamente ao salvar"
                     className="w-full px-3 py-2 bg-white rounded-xl border border-gray-300 focus:outline-hidden focus:border-brand-500"
                   />
                 </div>
