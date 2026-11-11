@@ -2,7 +2,7 @@ import { Dialog } from "./Dialog";
 import React from "react";
 import { Sale, StoreSettings } from "../types";
 import { formatBRL, formatDateBR } from "../services/api";
-import { Printer, X, Download } from "lucide-react";
+import { Printer, X, Share2 } from "lucide-react";
 
 interface ReceiptProps {
   sale: Sale;
@@ -17,6 +17,41 @@ export const Receipt: React.FC<ReceiptProps> = ({
 }) => {
   const handlePrint = () => {
     window.print();
+  };
+
+  // Mobile Bluetooth thermal printers usually need an Android print service or
+  // compatible app. Share a plain-text version when the printer is not exposed
+  // through the system print dialog. No unverified direct Bluetooth connection.
+  const handleShare = async () => {
+    const lines = [
+      settings?.store_name || "Lory Boutique",
+      "COMPROVANTE NAO FISCAL",
+      `Venda: ${sale.code}`,
+      formatDateBR(sale.created_at),
+      "----------------------------",
+      ...(sale.items || []).flatMap((item) => [
+        item.product_name,
+        `${item.quantity} x ${formatBRL(item.unit_price_cents)} = ${formatBRL(item.total_cents)}`,
+      ]),
+      "----------------------------",
+      `TOTAL: ${formatBRL(sale.total_cents)}`,
+      ...(sale.payments || []).map((p) => `${getPaymentName(p.payment_method)}: ${formatBRL(p.amount_cents)}`),
+      ...(sale.change_cents ? [`Troco: ${formatBRL(sale.change_cents)}`] : []),
+      "Obrigado pela preferencia!",
+    ];
+    const content = lines.join("\\n");
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Cupom Lory Boutique", text: content });
+      } else {
+        await navigator.clipboard.writeText(content);
+        window.alert("Cupom copiado. Cole no aplicativo da impressora Bluetooth.");
+      }
+    } catch (error) {
+      if ((error as Error).name !== "AbortError") {
+        window.alert("Nao foi possivel compartilhar o cupom. Use a opcao Imprimir.");
+      }
+    }
   };
 
   const getPaymentName = (method: string) => {
@@ -48,7 +83,10 @@ export const Receipt: React.FC<ReceiptProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium rounded-lg shadow-xs transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              Imprimir
+              Imprimir 58mm
+            </button>
+            <button onClick={handleShare} type="button" title="Enviar texto ao aplicativo da impressora" className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-brand-300 text-brand-900 text-xs font-semibold rounded-lg">
+              <Share2 className="w-3.5 h-3.5" /> Compartilhar
             </button>
             <button
               data-dialog-close
@@ -82,7 +120,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
               {settings?.store_name || "LORY BOUTIQUE"}
             </h1>
             <p className="text-[10px] text-gray-500 uppercase">
-              Moda Feminina Elegante
+              Moda e Acessórios
             </p>
             <p className="text-[11px] text-gray-600 mt-1">
               {settings?.address ||
@@ -142,7 +180,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
           {/* Items Table */}
           <div className="py-2.5 border-b border-dashed border-gray-300">
             <div className="flex justify-between text-[10px] font-bold text-gray-600 uppercase mb-1">
-              <span>Item / Variação</span>
+              <span>Produto</span>
               <span>Total</span>
             </div>
             <div className="space-y-2">
@@ -154,10 +192,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
                   </div>
                   <div className="text-[10px] text-gray-500 flex justify-between">
                     <span>
-                      Tam: {it.size} | Cor: {it.color}
-                      {it.product_reference
-                        ? ` | Ref: ${it.product_reference}`
-                        : ""}
+                      {it.product_reference ? `Ref: ${it.product_reference}` : ""}
                     </span>
                     <span>
                       {it.quantity}x {formatBRL(it.unit_price_cents)}
@@ -210,7 +245,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
             <p className="font-serif italic text-brand-900 font-semibold">
               Obrigada por escolher a Lory Boutique!
             </p>
-            <p>Trocas com este comprovante em até 7 dias corridos.</p>
+            <p>Guarde este comprovante para eventuais trocas.</p>
             <p className="text-[9px] text-gray-400">
               Instagram: @loryboutiquel
             </p>
