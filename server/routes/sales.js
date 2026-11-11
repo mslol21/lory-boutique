@@ -45,7 +45,7 @@ router.get("/pos/search", authenticate, async (req, res) => {
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.status = 'active'
       ORDER BY p.name ASC
-      LIMIT 30
+      LIMIT 200
     `);
     const result = await Promise.all(
       items.map(async (p) => {
@@ -80,7 +80,7 @@ router.get("/pos/search", authenticate, async (req, res) => {
        pv.barcode LIKE ?
      )
      ORDER BY p.name ASC
-     LIMIT 30`,
+     LIMIT 200`,
     [wildcard, wildcard, clean, clean, wildcard, wildcard],
   );
   const result = await Promise.all(
