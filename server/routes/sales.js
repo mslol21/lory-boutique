@@ -34,6 +34,24 @@ async function generateSaleCode() {
   return `${prefix}${String(seq).padStart(4, "0")}`;
 }
 
+// Load stock for all visible products in a single query, avoiding
+// one roundtrip per product (important for serverless/PostgreSQL latency).
+async function withVariations(items) {
+  if (!items.length) return [];
+  const ids = items.map(p => p.id);
+  const variations = await query(
+    `SELECT * FROM product_variations WHERE product_id IN (${ids.map(() => "?").join(",")}) ORDER BY size ASC, color ASC`,
+    ids,
+  );
+  const byProduct = new Map(ids.map(id => [id, []]));
+  for (const variation of variations) byProduct.get(variation.product_id)?.push(variation);
+  return items.map(p => ({
+    ...p,
+    images: p.images ? JSON.parse(p.images) : [],
+    variations: byProduct.get(p.id) || [],
+  }));
+}
+
 // Search products specifically optimized for POS barcode scanner or fast search
 router.get("/pos/search", authenticate, async (req, res) => {
   const { q } = req.query;
@@ -47,20 +65,7 @@ router.get("/pos/search", authenticate, async (req, res) => {
       ORDER BY p.name ASC
       LIMIT 200
     `);
-    const result = await Promise.all(
-      items.map(async (p) => {
-        const variations = await query(
-          "SELECT * FROM product_variations WHERE product_id = ? ORDER BY size ASC, color ASC",
-          [p.id],
-        );
-        return {
-          ...p,
-          images: p.images ? JSON.parse(p.images) : [],
-          variations,
-        };
-      }),
-    );
-    return res.json(result);
+    return res.json(await withVariations(items));
   }
   const clean = q.trim();
   const wildcard = `%${clean}%`;
@@ -83,20 +88,7 @@ router.get("/pos/search", authenticate, async (req, res) => {
      LIMIT 200`,
     [wildcard, wildcard, clean, clean, wildcard, wildcard],
   );
-  const result = await Promise.all(
-    items.map(async (p) => {
-      const variations = await query(
-        "SELECT * FROM product_variations WHERE product_id = ? ORDER BY size ASC, color ASC",
-        [p.id],
-      );
-      return {
-        ...p,
-        images: p.images ? JSON.parse(p.images) : [],
-        variations,
-      };
-    }),
-  );
-  return res.json(result);
+  return res.json(await withVariations(items));
 });
 router.post("/checkout", authenticate, async (req, res) => {
   try {
