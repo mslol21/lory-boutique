@@ -505,6 +505,9 @@ export const POS: React.FC<POSProps> = ({
                             LORY
                           </div>
                         )}
+                        {prod.images?.[0]?.startsWith("/illustrations/") && (
+                          <span className="absolute bottom-1.5 left-1.5 bg-white/90 text-gray-700 text-[9px] px-1 rounded">Ilustrativa</span>
+                        )}
                         <span
                           className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 text-[9px] font-bold rounded-md ${
                             hasStock
