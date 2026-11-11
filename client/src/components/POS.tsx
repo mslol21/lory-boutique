@@ -2,6 +2,7 @@ import { Dialog } from "./Dialog";
 import React, { useState, useEffect, useRef } from "react";
 import {
   Product,
+  Category,
   Variation,
   CartItem,
   PaymentItem,
@@ -47,6 +48,9 @@ export const POS: React.FC<POSProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const visibleProducts = searchResults.filter(p => !selectedCategory || p.category_name === categories.find(c => c.id === selectedCategory)?.name);
   const [isSearching, setIsSearching] = useState(false);
 
   const draftKey = `lory_pos_v1_${currentUser?.id}`;
@@ -120,6 +124,7 @@ export const POS: React.FC<POSProps> = ({
   useEffect(() => {
     searchInputRef.current?.focus();
     fetchCatalog();
+    apiRequest<Category[]>("/products/categories").then(setCategories).catch(() => {});
   }, []);
 
   const fetchCatalog = async (query = "") => {
@@ -143,9 +148,9 @@ export const POS: React.FC<POSProps> = ({
 
   // Keyboard barcode scanner handler: if enter is pressed and exact barcode match found
   const handleKeyDownSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && searchResults.length > 0) {
+    if (e.key === "Enter" && visibleProducts.length > 0) {
       // Check if single product or exact match
-      const p = searchResults[0];
+      const p = visibleProducts[0];
       handleProductSelect(p);
     }
   };
@@ -439,17 +444,32 @@ export const POS: React.FC<POSProps> = ({
             )}
           </div>
 
+          {/* Large, touch-friendly category filters to quickly locate clothing. */}
+          <div className="flex gap-2 overflow-x-auto pb-2" role="group" aria-label="Filtrar por categoria">
+            <button type="button" onClick={() => setSelectedCategory("")}
+              aria-pressed={!selectedCategory}
+              className={`shrink-0 px-4 py-3 rounded-xl text-sm font-bold border ${!selectedCategory ? "bg-brand-600 text-white border-brand-600" : "bg-white border-gray-200 text-gray-700"}`}>
+              Todos
+            </button>
+            {categories.filter(c => searchResults.some(p => p.category_name === c.name)).map(cat => (
+              <button type="button" key={cat.id} onClick={() => setSelectedCategory(cat.id)}
+                aria-pressed={selectedCategory === cat.id}
+                className={`shrink-0 px-4 py-3 rounded-xl text-sm font-bold border ${selectedCategory === cat.id ? "bg-brand-600 text-white border-brand-600" : "bg-white border-gray-200 text-gray-700"}`}>
+                {cat.name.replace("Roupas ", "")}
+              </button>
+            ))}
+          </div>
           {/* Catalog Quick Grid */}
           <div className="bg-white rounded-3xl border border-gray-200 p-4 shadow-2xs flex-1 flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3 text-xs text-gray-500">
               <span className="font-semibold uppercase tracking-wider text-gray-700">
-                Produtos e preços ({searchResults.length})
+                Produtos e preços ({visibleProducts.length})
               </span>
               <span>Toque no produto para adicionar ao cupom</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto max-h-[620px] p-1">
-              {searchResults.map((prod) => {
+              {visibleProducts.map((prod) => {
                 const totalStock = prod.variations.reduce(
                   (sum, v) => sum + v.stock,
                   0,
