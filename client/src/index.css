@@ -48,7 +48,7 @@
 
 /* 58 mm thermal receipts (55 mm paper; approx. 48 mm printable). */
 @media print {
-  @page { size: 58mm auto; margin: 0; }
+  @page { size: auto; margin: 0; }
   html, body, #root { width: 58mm !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; background: white !important; }
   body * { visibility: hidden !important; }
   #printable-receipt, #printable-receipt * { visibility: visible !important; }
