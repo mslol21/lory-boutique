@@ -33,6 +33,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "active" | "archived" | "all"
   >("active");
@@ -347,6 +348,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
   };
 
   const filteredProducts = products.filter((p) => {
+    if (selectedCategory && p.category_id !== selectedCategory) return false;
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
@@ -388,7 +390,7 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
             Produtos & Estoque
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Gerenciamento de peças, grade de tamanhos, cores e movimentações
+            Gerenciamento de produtos por categoria, preços e movimentações
             rastreadas
           </p>
         </div>
@@ -439,6 +441,22 @@ export const ProductsManager: React.FC<ProductsManagerProps> = ({
             <option value="all">Todos</option>
           </select>
         </div>
+      </div>
+
+      {/* Filter category without reloading, suitable for counter use */}
+      <div className="flex gap-2 overflow-x-auto pb-2" role="group" aria-label="Categorias dos produtos">
+        <button type="button" onClick={() => setSelectedCategory("")}
+          aria-pressed={!selectedCategory}
+          className={`shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold border ${!selectedCategory ? "bg-brand-600 text-white border-brand-600" : "bg-white text-gray-700 border-gray-200"}`}>
+          Todas ({products.length})
+        </button>
+        {categories.map(cat => (
+          <button type="button" key={cat.id} onClick={() => setSelectedCategory(cat.id)}
+            aria-pressed={selectedCategory === cat.id}
+            className={`shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold border ${selectedCategory === cat.id ? "bg-brand-600 text-white border-brand-600" : "bg-white text-gray-700 border-gray-200"}`}>
+            {cat.name} ({products.filter(p => p.category_id === cat.id).length})
+          </button>
+        ))}
       </div>
 
       {/* Products Table */}
