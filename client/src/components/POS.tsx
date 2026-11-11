@@ -12,7 +12,7 @@ import {
 } from "../types";
 import { apiRequest, formatBRL } from "../services/api";
 import { Receipt } from "./Receipt";
-import { applyReservations, queueOfflineSale, readOfflineCatalog, readQueuedSales, saveOfflineCatalog, syncOfflineSales, type QueuedSale } from "../services/offline";
+import { applyReservations, queueOfflineSale, readOfflineCatalog, readQueuedSales, saveOfflineCatalog, syncOfflineSales, type QueuedSale, type CheckoutPayload } from "../services/offline";
 import {
   Search,
   Barcode,
@@ -369,7 +369,7 @@ export const POS: React.FC<POSProps> = ({
       : 0;
 
   const savePendingOffline = async () => {
-    const payload = pendingRef.current;
+    const payload = pendingRef.current as CheckoutPayload | null;
     if (!payload) throw new Error("Venda pendente não encontrada.");
     if (!offlineReady) throw new Error("É necessário carregar o catálogo online pelo menos uma vez neste aparelho.");
     const sale: QueuedSale = {
