@@ -39,7 +39,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
       ...(sale.change_cents ? [`Troco: ${formatBRL(sale.change_cents)}`] : []),
       "Obrigado pela preferencia!",
     ];
-    const content = lines.join("\\n");
+    const content = lines.join("\n");
     try {
       if (navigator.share) {
         await navigator.share({ title: "Cupom Lory Boutique", text: content });
