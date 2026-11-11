@@ -8,12 +8,14 @@ interface ReceiptProps {
   sale: Sale;
   settings?: StoreSettings | null;
   onClose: () => void;
+  provisional?: boolean;
 }
 
 export const Receipt: React.FC<ReceiptProps> = ({
   sale,
   settings,
   onClose,
+  provisional = false,
 }) => {
   const handlePrint = () => {
     window.print();
@@ -25,7 +27,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
   const handleShare = async () => {
     const lines = [
       settings?.store_name || "Lory Boutique",
-      "COMPROVANTE NAO FISCAL",
+      provisional ? "PENDENTE DE SINCRONIZACAO" : "COMPROVANTE NAO FISCAL",
       `Venda: ${sale.code}`,
       formatDateBR(sale.created_at),
       "----------------------------",
@@ -75,7 +77,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
         {/* Modal Toolbar (hidden when printing) */}
         <div className="bg-brand-50 px-5 py-3 border-b border-brand-100 flex items-center justify-between print:hidden">
           <span className="text-xs font-semibold uppercase tracking-wider text-brand-800">
-            Comprovante Não Fiscal
+            {provisional ? "Venda local — pendente" : "Comprovante Não Fiscal"}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -109,11 +111,17 @@ export const Receipt: React.FC<ReceiptProps> = ({
                 : "Devolvida parcialmente"}
           </p>
         )}
+        {provisional && (
+          <p className="px-4 py-3 text-xs font-bold text-amber-950 bg-amber-100 border-y border-amber-300 print:hidden">
+            Esta venda foi salva somente neste aparelho e ainda não consta no banco Neon. Não é um comprovante de venda confirmada.
+          </p>
+        )}
         {/* Printable Area */}
         <div
           id="printable-receipt"
           className="p-6 font-mono text-xs text-gray-800 bg-white"
         >
+          {provisional && <div className="mb-3 text-center font-bold text-sm border-2 border-black p-2">PENDENTE DE SINCRONIZAÇÃO<br />NÃO CONFIRMADO NO SERVIDOR</div>}
           {/* Header */}
           <div className="text-center pb-3 border-b border-dashed border-gray-300">
             <h1 className="text-base font-bold text-gray-900 tracking-wider">
@@ -133,7 +141,7 @@ export const Receipt: React.FC<ReceiptProps> = ({
               <p className="text-[10px] text-gray-500">CNPJ: {settings.cnpj}</p>
             ) : null}
             <div className="mt-2 py-1 bg-amber-50 border border-amber-200 rounded text-[10px] font-semibold text-amber-800 uppercase">
-              *** DOCUMENTO NÃO FISCAL ***
+              {provisional ? "*** VENDA LOCAL PENDENTE ***" : "*** DOCUMENTO NÃO FISCAL ***"}
             </div>
           </div>
 
