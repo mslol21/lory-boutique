@@ -16,6 +16,24 @@ const views = ["showcase", "pos", "products", "cash", "sales", "dashboard", "set
 type View = (typeof views)[number];
 const viewKey = (user: User) => `lory_view_v1_${user.id}`;
 
+// Persist a validated online session for brief offline interruptions.
+// Never cache passwords. Existing JWT expiration is enforced locally.
+const cachedUserKey = "lory_offline_session_v1";
+const cachedCashKey = "lory_offline_cash_v1";
+const cachedSettingsKey = "lory_offline_settings_v1";
+function offlineIdentity(): User | null {
+  try {
+    const token = localStorage.getItem("lory_auth_token");
+    const cache = JSON.parse(localStorage.getItem(cachedUserKey) || "null");
+    if (!token || !cache?.user || cache.token !== token) return null;
+    const claims = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if (!claims.exp || Date.now() >= claims.exp * 1000) return null;
+    if (claims.id !== cache.user.id) return null;
+    return cache.user as User;
+  } catch { return null; }
+}
+
+
 function restoreView(user: User): View {
   try {
     const saved = localStorage.getItem(viewKey(user));
@@ -71,16 +89,24 @@ export function App() {
     }
     try {
       const res = await apiRequest<{ user: User }>("/auth/me");
+      localStorage.setItem(cachedUserKey, JSON.stringify({token, user: res.user}));
       setCurrentUser(res.user);
       setCurrentView(restoreView(res.user));
     } catch (err) {
       const status = (err as Error & { status?: number }).status;
       if (status === 401 || status === 403) {
         setAuthToken(null);
+        localStorage.removeItem(cachedUserKey);
         setCurrentUser(null);
         setCurrentView("showcase");
       } else {
-        setSessionError(true);
+        const cached = offlineIdentity();
+        if (cached) {
+          setCurrentUser(cached);
+          setCurrentView(restoreView(cached));
+        } else {
+          setSessionError(true);
+        }
       }
     } finally {
       setIsCheckingSession(false);
@@ -101,8 +127,12 @@ export function App() {
     try {
       const res = await apiRequest<StoreSettings>("/public/settings");
       setSettings(res);
+      localStorage.setItem(cachedSettingsKey, JSON.stringify(res));
     } catch (err) {
-      console.error(err);
+      try {
+        const cached = localStorage.getItem(cachedSettingsKey);
+        if (cached) setSettings(JSON.parse(cached));
+      } catch { /* Offline settings not available */ }
     }
   };
 
@@ -111,8 +141,14 @@ export function App() {
     try {
       const res = await apiRequest<any>("/cash/current");
       setIsCashOpen(res.open);
+      localStorage.setItem(cachedCashKey, JSON.stringify({open: res.open, at: Date.now()}));
     } catch (err) {
-      setIsCashOpen(false);
+      try {
+        const cached = JSON.parse(localStorage.getItem(cachedCashKey) || "null");
+        // Previously opened register valid provisionally for up to 12h;
+        // server validates again on reconciliation.
+        setIsCashOpen(Boolean(offlineIdentity() && cached?.open && Date.now() - cached.at < 12 * 60 * 60 * 1000));
+      } catch { setIsCashOpen(false); }
     }
   };
 
@@ -123,6 +159,8 @@ export function App() {
   }, []);
 
   const handleLoginSuccess = (user: User) => {
+    const token = localStorage.getItem("lory_auth_token");
+    if (token) localStorage.setItem(cachedUserKey, JSON.stringify({token, user}));
     setCurrentUser(user);
     checkCashStatus();
     setCurrentView("pos"); // Automatically navigate to POS on login
@@ -133,6 +171,7 @@ export function App() {
       try { localStorage.removeItem(viewKey(currentUser)); } catch { /* optional navigation */ }
     }
     setAuthToken(null);
+    localStorage.removeItem(cachedUserKey);
     setCurrentUser(null);
     setCurrentView("showcase");
   };
