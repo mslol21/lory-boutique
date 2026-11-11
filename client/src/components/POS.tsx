@@ -71,10 +71,8 @@ export const POS: React.FC<POSProps> = ({
   const [customerName, setCustomerName] = useState(draft.customerName || "");
   const [customerPhone, setCustomerPhone] = useState(draft.customerPhone || "");
 
-  // Selected item variation picker modal
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedSize, setSelectedSize] = useState<string>("");
-  const [selectedColor, setSelectedColor] = useState<string>("");
+  // Fast checkout: the product's stock is tracked by its standard SKU,
+  // not by size or color, so adding an item takes a single tap.
 
   // Checkout modal
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -153,77 +151,44 @@ export const POS: React.FC<POSProps> = ({
   };
 
   const handleProductSelect = (product: Product) => {
-    setSelectedProduct(product);
-    // Find first available variation
-    const firstAvailable = product.variations.find((v) => v.stock > 0);
-    if (firstAvailable) {
-      setSelectedSize(firstAvailable.size);
-      setSelectedColor(firstAvailable.color);
-    } else if (product.variations.length > 0) {
-      setSelectedSize(product.variations[0].size);
-      setSelectedColor(product.variations[0].color);
-    }
-  };
-
-  const addVariationToCart = () => {
     if (hasPending) {
       setErrorMessage("Recupere a venda pendente antes de alterar o carrinho.");
       return;
     }
-    if (!selectedProduct || !selectedSize || !selectedColor) return;
-
-    const variation = selectedProduct.variations.find(
-      (v) => v.size === selectedSize && v.color === selectedColor,
-    );
-
+    // Legacy products can have more than one internal variation; choose a
+    // stocked row without asking a clerk for size/color.
+    const variation = product.variations.find((v) => v.stock > 0);
     if (!variation) {
-      setErrorMessage("Variação não encontrada.");
+      setErrorMessage(`Sem estoque para "${product.name}". Informe a quantidade no cadastro de produtos.`);
       return;
     }
-
-    if (variation.stock <= 0) {
-      setErrorMessage(
-        `A peça "${selectedProduct.name} (${selectedSize} / ${selectedColor})" está com estoque esgotado.`,
-      );
-      return;
-    }
-
-    // Check existing in cart
-    const existingIndex = cart.findIndex(
-      (i) => i.variation_id === variation.id,
-    );
-    const effectivePrice =
-      selectedProduct.promo_price_cents || selectedProduct.sale_price_cents;
-
+    const existingIndex = cart.findIndex((i) => i.variation_id === variation.id);
     if (existingIndex >= 0) {
       const existing = cart[existingIndex];
-      if (existing.quantity + 1 > variation.stock) {
-        setErrorMessage(
-          `Limite de estoque atingido! Há apenas ${variation.stock} unidade(s) disponível(is).`,
-        );
+      if (existing.quantity >= variation.stock) {
+        setErrorMessage(`Estoque insuficiente para "${product.name}". Disponível: ${variation.stock}.`);
         return;
       }
-      const updated = [...cart];
-      updated[existingIndex].quantity += 1;
-      setCart(updated);
+      setCart((prev) => prev.map((item, idx) =>
+        idx === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
+      ));
     } else {
-      const newItem: CartItem = {
+      const item: CartItem = {
         variation_id: variation.id,
-        product_id: selectedProduct.id,
-        product_name: selectedProduct.name,
-        reference: selectedProduct.reference,
+        product_id: product.id,
+        product_name: product.name,
+        reference: product.reference,
         size: variation.size,
         color: variation.color,
-        unit_price_cents: effectivePrice,
+        unit_price_cents: product.promo_price_cents ?? product.sale_price_cents,
         quantity: 1,
         available_stock: variation.stock,
       };
-      setCart([...cart, newItem]);
+      setCart((prev) => [...prev, item]);
     }
-
-    // Close variation picker
-    setSelectedProduct(null);
     setErrorMessage(null);
+    setSearchTerm("");
+    fetchCatalog();
     searchInputRef.current?.focus();
   };
 
@@ -239,7 +204,7 @@ export const POS: React.FC<POSProps> = ({
 
     if (newQty > item.available_stock) {
       setErrorMessage(
-        `Estoque máximo para "${item.product_name} (${item.size}/${item.color})": ${item.available_stock} un.`,
+        `Estoque máximo para "${item.product_name}": ${item.available_stock} un.`,
       );
       return;
     }
@@ -478,9 +443,9 @@ export const POS: React.FC<POSProps> = ({
           <div className="bg-white rounded-3xl border border-gray-200 p-4 shadow-2xs flex-1 flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3 text-xs text-gray-500">
               <span className="font-semibold uppercase tracking-wider text-gray-700">
-                Peças da Loja ({searchResults.length})
+                Produtos e preços ({searchResults.length})
               </span>
-              <span>Clique para selecionar tamanho/cor</span>
+              <span>Toque no produto para adicionar ao cupom</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto max-h-[620px] p-1">
@@ -497,6 +462,10 @@ export const POS: React.FC<POSProps> = ({
                   <div
                     key={prod.id}
                     onClick={() => handleProductSelect(prod)}
+                    role="button"
+                    tabIndex={hasStock ? 0 : -1}
+                    aria-label={`Adicionar ${prod.name} ao cupom`}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleProductSelect(prod); } }}
                     className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                       hasStock
                         ? "border-gray-200 hover:border-brand-400 hover:shadow-xs bg-white"
@@ -544,7 +513,7 @@ export const POS: React.FC<POSProps> = ({
                         {formatBRL(effectivePrice)}
                       </span>
                       <span className="text-[10px] text-brand-600 font-semibold bg-brand-50 px-1.5 py-0.5 rounded">
-                        +{prod.variations.length} var.
+                        Adicionar +
                       </span>
                     </div>
                   </div>
@@ -639,10 +608,7 @@ export const POS: React.FC<POSProps> = ({
                           {item.product_name}
                         </h4>
                         <div className="flex items-center gap-2 text-gray-500 text-[11px] mt-0.5">
-                          <span className="bg-white px-1.5 py-0.5 rounded border border-gray-200 font-semibold text-gray-700">
-                            {item.size}
-                          </span>
-                          <span>{item.color}</span>
+                          <span className="bg-white px-1.5 py-0.5 rounded border border-gray-200 font-semibold text-gray-700">{item.reference || "Produto"}</span>
                           <span className="text-gray-400">
                             • Disp: {item.available_stock}
                           </span>
@@ -758,107 +724,6 @@ export const POS: React.FC<POSProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Variation Picker Modal */}
-      {selectedProduct && (
-        <Dialog className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-brand-100 animate-in fade-in zoom-in-95 duration-200 p-6">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-base">
-                  {selectedProduct.name}
-                </h3>
-                {selectedProduct.reference && (
-                  <p className="text-xs text-gray-400 font-mono">
-                    Ref: {selectedProduct.reference}
-                  </p>
-                )}
-              </div>
-              <button
-                data-dialog-close
-                aria-label="Fechar janela"
-                onClick={() => setSelectedProduct(null)}
-                className="p-1 text-gray-400 hover:text-gray-700 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Select Size */}
-            <div className="mb-4">
-              <label className="block text-xs font-bold text-gray-700 mb-2">
-                Selecione o Tamanho:
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {Array.from(
-                  new Set(selectedProduct.variations.map((v) => v.size)),
-                ).map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      selectedSize === size
-                        ? "bg-brand-600 border-brand-600 text-white shadow-xs"
-                        : "bg-white border-gray-300 text-gray-800 hover:border-brand-400"
-                    }`}
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Select Color */}
-            <div className="mb-6">
-              <label className="block text-xs font-bold text-gray-700 mb-2">
-                Selecione a Cor:
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {Array.from(
-                  new Set(selectedProduct.variations.map((v) => v.color)),
-                ).map((color) => {
-                  const matching = selectedProduct.variations.find(
-                    (v) => v.size === selectedSize && v.color === color,
-                  );
-                  const stock = matching ? matching.stock : 0;
-
-                  return (
-                    <button
-                      key={color}
-                      onClick={() => setSelectedColor(color)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                        selectedColor === color
-                          ? "bg-brand-600 border-brand-600 text-white shadow-xs"
-                          : stock > 0
-                            ? "bg-white border-gray-300 text-gray-800 hover:border-brand-400"
-                            : "bg-gray-100 border-gray-200 text-gray-400 line-through"
-                      }`}
-                    >
-                      {color} ({stock} em estoque)
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setSelectedProduct(null)}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={addVariationToCart}
-                disabled={!selectedSize || !selectedColor}
-                className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
-              >
-                Adicionar ao Carrinho
-              </button>
-            </div>
-          </div>
-        </Dialog>
-      )}
 
       {/* Checkout & Split Payment Modal */}
       {isCheckoutOpen && (
