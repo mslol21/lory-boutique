@@ -51,7 +51,6 @@ export const POS: React.FC<POSProps> = ({
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("");
-  const visibleProducts = visibleMatches(searchResults, searchTerm).filter(p => !selectedCategory || p.category_name === categories.find(c => c.id === selectedCategory)?.name);
   const [isSearching, setIsSearching] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queuedSales, setQueuedSales] = useState<QueuedSale[]>([]);
@@ -208,6 +207,8 @@ export const POS: React.FC<POSProps> = ({
         v.barcode?.toLocaleLowerCase("pt-BR").includes(query))
     );
   };
+  const visibleProducts = visibleMatches(searchResults, searchTerm).filter(p => !selectedCategory || p.category_name === categories.find(c => c.id === selectedCategory)?.name);
+
   const handleSearchChange = (val: string) => {
     setSearchTerm(val);
   };
