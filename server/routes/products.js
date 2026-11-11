@@ -30,7 +30,7 @@ async function nextProductReference(categoryId) {
   let highest = 0;
   for (const { reference } of rows) {
     const suffix = String(reference || "").slice(stem.length);
-    if (String(reference).startsWith(stem) && /^\\d+$/.test(suffix)) {
+    if (String(reference).startsWith(stem) && /^\d+$/.test(suffix)) {
       highest = Math.max(highest, Number(suffix));
     }
   }
