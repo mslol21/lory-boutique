@@ -585,6 +585,10 @@ export const Showcase: React.FC<ShowcaseProps> = ({
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
 
+                    {/* Illustrations are placeholders, not actual photographed stock. */}
+                    {primaryImage.startsWith("/illustrations/") && (
+                      <span className="absolute bottom-3 right-3 z-10 px-2 py-1 bg-white/90 text-gray-700 text-[9px] font-semibold rounded-lg shadow-sm">Imagem ilustrativa</span>
+                    )}
                     {/* Badges */}
                     <div className="absolute top-3 left-3 flex flex-col gap-1.5">
                       {isPromo && (
