@@ -129,48 +129,49 @@ router.get("/products", async (req, res) => {
   sql += " ORDER BY p.created_at DESC";
   const products = await query(sql, params);
 
-  // Fetch variations with availability (NOT leaking cost prices)
-  const results = await Promise.all(
-    products.map(async (p) => {
-      let variationsSql =
-        "SELECT id, size, color, stock FROM product_variations WHERE product_id = ?";
-      const varParams = [p.id];
-      if (size) {
-        variationsSql += " AND size = ?";
-        varParams.push(size);
-      }
-      if (color) {
-        variationsSql += " AND color = ?";
-        varParams.push(color);
-      }
-      variationsSql += " ORDER BY size ASC, color ASC";
-      const variations = await query(variationsSql, varParams);
-      const images = p.images ? JSON.parse(p.images) : [];
-      const totalAvailable = variations.reduce(
-        (sum, v) => sum + Math.max(0, v.stock),
-        0,
-      );
-      return {
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        category_id: p.category_id,
-        category_name: p.category_name,
-        reference: p.reference,
-        sale_price_cents: p.sale_price_cents,
-        promo_price_cents: p.promo_price_cents,
-        images,
-        variations: variations.map((v) => ({
-          id: v.id,
-          size: v.size,
-          color: v.color,
-          available: v.stock > 0,
-          stock_units: v.stock, // For informational badge
-        })),
-        is_available: totalAvailable > 0,
-      };
-    }),
-  );
+  // Batch variations to avoid N+1 database requests across the whole catalog.
+  const ids = products.map(p => p.id);
+  const filterSql = [];
+  const varParams = [...ids];
+  if (size) {
+    filterSql.push("size = ?");
+    varParams.push(size);
+  }
+  if (color) {
+    filterSql.push("color = ?");
+    varParams.push(color);
+  }
+  const variations = ids.length
+    ? await query(
+        `SELECT id,product_id,size,color,stock FROM product_variations
+         WHERE product_id IN (${ids.map(() => "?").join(",")})
+         ${filterSql.length ? " AND " + filterSql.join(" AND ") : ""}
+         ORDER BY size ASC,color ASC`,
+        varParams,
+      )
+    : [];
+  const byProduct = new Map(ids.map(id => [id, []]));
+  for (const variation of variations) byProduct.get(variation.product_id)?.push(variation);
+  const results = products.map(p => {
+    const rows = byProduct.get(p.id) || [];
+    const totalAvailable = rows.reduce((sum, v) => sum + Math.max(0, v.stock), 0);
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      category_id: p.category_id,
+      category_name: p.category_name,
+      reference: p.reference,
+      sale_price_cents: p.sale_price_cents,
+      promo_price_cents: p.promo_price_cents,
+      images: p.images ? JSON.parse(p.images) : [],
+      variations: rows.map(v => ({
+        id: v.id, size: v.size, color: v.color,
+        available: v.stock > 0, stock_units: v.stock,
+      })),
+      is_available: totalAvailable > 0,
+    };
+  });
 
   // If size or color filter applied, only keep products that have matching variations
   const filtered =
