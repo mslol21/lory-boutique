@@ -12,6 +12,7 @@ import {
 } from "../types";
 import { apiRequest, formatBRL } from "../services/api";
 import { Receipt } from "./Receipt";
+import { applyReservations, queueOfflineSale, readOfflineCatalog, readQueuedSales, saveOfflineCatalog, syncOfflineSales, type QueuedSale } from "../services/offline";
 import {
   Search,
   Barcode,
@@ -50,8 +51,13 @@ export const POS: React.FC<POSProps> = ({
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("");
-  const visibleProducts = searchResults.filter(p => !selectedCategory || p.category_name === categories.find(c => c.id === selectedCategory)?.name);
+  const visibleProducts = visibleMatches(searchResults, searchTerm).filter(p => !selectedCategory || p.category_name === categories.find(c => c.id === selectedCategory)?.name);
   const [isSearching, setIsSearching] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [queuedSales, setQueuedSales] = useState<QueuedSale[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [isProvisionalReceipt, setIsProvisionalReceipt] = useState(false);
+  const [offlineReady, setOfflineReady] = useState(false);
 
   const draftKey = `lory_pos_v1_${currentUser?.id}`;
   const [draft] = useState(() => {
@@ -120,30 +126,90 @@ export const POS: React.FC<POSProps> = ({
   // Search input ref for quick keyboard focusing
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto focus search input on POS view load
-  useEffect(() => {
-    searchInputRef.current?.focus();
-    fetchCatalog();
-    apiRequest<Category[]>("/products/categories").then(setCategories).catch(() => {});
-  }, []);
-
-  const fetchCatalog = async (query = "") => {
+  // Initial authenticated catalog snapshot is stored on this device.
+  // Always filter the snapshot locally, so search/category browsing works offline.
+  const userId = currentUser?.id || "";
+  const refreshOfflineData = async () => {
+    if (!userId) return;
+    const queued = await readQueuedSales(userId);
+    setQueuedSales(queued);
+    const snapshot = await readOfflineCatalog(userId);
+    if (snapshot.products.length) {
+      setSearchResults(applyReservations(snapshot.products, queued));
+      setCategories(snapshot.categories);
+      setOfflineReady(true);
+    }
+  };
+  const fetchCatalog = async () => {
+    if (!userId) return;
     setIsSearching(true);
     try {
-      const res = await apiRequest<Product[]>(
-        `/sales/pos/search?q=${encodeURIComponent(query)}`,
-      );
-      setSearchResults(res);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Não foi possível carregar os produtos.");
+      // When online, update the entire device cache, not just a search subset.
+      const [products, cats] = await Promise.all([
+        apiRequest<Product[]>("/sales/pos/search"),
+        apiRequest<Category[]>("/products/categories"),
+      ]);
+      await saveOfflineCatalog(userId, products, cats);
+      setCategories(cats);
+      const queued = await readQueuedSales(userId);
+      setQueuedSales(queued);
+      setSearchResults(applyReservations(products, queued));
+      setOfflineReady(true);
+    } catch {
+      try {
+        await refreshOfflineData();
+      } catch (error) {
+        setErrorMessage((error as Error).message || "Não foi possível carregar o catálogo offline.");
+      }
     } finally {
       setIsSearching(false);
     }
   };
+  const syncPending = async () => {
+    if (!userId || !navigator.onLine || syncing) return;
+    setSyncing(true);
+    try {
+      const result = await syncOfflineSales(userId);
+      if (result.conflict) {
+        setErrorMessage(`Venda offline requer conferência: ${result.conflict}. Não retire esta venda do aparelho antes de conciliar.`);
+      } else if (result.synced > 0) {
+        setErrorMessage(`${result.synced} venda(s) sincronizada(s) com sucesso.`);
+      }
+      await fetchCatalog();
+    } catch {
+      setErrorMessage("A sincronização falhou. As vendas continuam salvas neste aparelho.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+  useEffect(() => {
+    searchInputRef.current?.focus();
+    void refreshOfflineData().catch(() => {});
+    void fetchCatalog();
+    const online = () => { setIsOnline(true); };
+    const offline = () => setIsOnline(false);
+    window.addEventListener("online", online);
+    window.addEventListener("offline", offline);
+    return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
+  }, [userId]);
+  useEffect(() => {
+    if (isOnline && queuedSales.some(x => x.status === "pending") && !hasPending) {
+      void syncPending();
+    }
+  }, [isOnline, queuedSales.length, hasPending]);
 
+  const visibleMatches = (products: Product[], value: string) => {
+    const query = value.trim().toLocaleLowerCase("pt-BR");
+    if (!query) return products;
+    return products.filter(p =>
+      p.name.toLocaleLowerCase("pt-BR").includes(query) ||
+      p.reference?.toLocaleLowerCase("pt-BR").includes(query) ||
+      p.variations.some(v => v.sku?.toLocaleLowerCase("pt-BR").includes(query) ||
+        v.barcode?.toLocaleLowerCase("pt-BR").includes(query))
+    );
+  };
   const handleSearchChange = (val: string) => {
     setSearchTerm(val);
-    fetchCatalog(val);
   };
 
   // Keyboard barcode scanner handler: if enter is pressed and exact barcode match found
@@ -193,7 +259,6 @@ export const POS: React.FC<POSProps> = ({
     }
     setErrorMessage(null);
     setSearchTerm("");
-    fetchCatalog();
     searchInputRef.current?.focus();
   };
 
@@ -302,81 +367,139 @@ export const POS: React.FC<POSProps> = ({
       ? totalPaidCents - totalCents
       : 0;
 
-  // Finalize Sale
+  const savePendingOffline = async () => {
+    const payload = pendingRef.current;
+    if (!payload) throw new Error("Venda pendente não encontrada.");
+    if (!offlineReady) throw new Error("É necessário carregar o catálogo online pelo menos uma vez neste aparelho.");
+    const sale: QueuedSale = {
+      id: payload.idempotency_key,
+      userId,
+      createdAt: new Date().toISOString(),
+      payload,
+      items: [...cart],
+      totalCents,
+      status: "pending",
+    };
+    await queueOfflineSale(sale);
+    const queued = await readQueuedSales(userId);
+    setQueuedSales(queued);
+    setSearchResults(prev => applyReservations(prev, [sale]));
+    pendingRef.current = null;
+    setHasPending(false);
+    setCart([]);
+    setDiscountValue(0);
+    setCustomerName("");
+    setCustomerPhone("");
+    setIsCheckoutOpen(false);
+    localStorage.removeItem(draftKey);
+    setCompletedSale({
+      id: sale.id,
+      code: "LOCAL-" + sale.id.slice(0, 8).toUpperCase(),
+      register_id: "",
+      user_id: userId,
+      seller_name: currentUser?.name || "Equipe Lory",
+      customer_name: payload.customer_name,
+      customer_phone: payload.customer_phone,
+      subtotal_cents: subtotalCents,
+      discount_cents: payload.discount_cents,
+      total_cents: totalCents,
+      change_cents: changeCents,
+      status: "completed",
+      created_at: sale.createdAt,
+      items: sale.items.map(item => ({
+        id: item.variation_id,
+        sale_id: sale.id,
+        variation_id: item.variation_id,
+        product_name: item.product_name,
+        product_reference: item.reference,
+        size: item.size,
+        color: item.color,
+        unit_price_cents: item.unit_price_cents,
+        quantity: item.quantity,
+        total_cents: item.quantity * item.unit_price_cents,
+        returned_quantity: 0,
+        net_total_cents: item.quantity * item.unit_price_cents,
+      })),
+      payments: payload.payments.map((payment, i) => ({
+        id: String(i),
+        sale_id: sale.id,
+        payment_method: payment.method,
+        amount_cents: payment.amount_cents,
+      })),
+    });
+    setIsProvisionalReceipt(true);
+    setErrorMessage("Venda guardada neste aparelho. Ainda não foi confirmada no Neon. Sincronize antes de fechar o caixa.");
+  };
+
+  // Preserve the exact payload and idempotency key on unknown network failures.
   const handleFinalizeSale = async () => {
     if (submittingRef.current) return;
     setErrorMessage(null);
     if (!pendingRef.current && totalPaidCents < totalCents) {
-      setErrorMessage("Pagamento insuficiente.");
-      return;
+      setErrorMessage("Pagamento insuficiente."); return;
     }
-    const cash = payments
-      .filter((p) => p.method === "money")
-      .reduce((sum, p) => sum + p.amount_cents, 0);
+    const cash = payments.filter(p => p.method === "money").reduce((sum, p) => sum + p.amount_cents, 0);
     if (!pendingRef.current && totalPaidCents - totalCents > cash) {
-      setErrorMessage("O troco excede o dinheiro recebido.");
-      return;
+      setErrorMessage("O troco excede o dinheiro recebido."); return;
     }
     submittingRef.current = true;
     setIsSubmitting(true);
     try {
       if (!pendingRef.current) {
         pendingRef.current = {
-          items: cart.map((i) => ({
-            variation_id: i.variation_id,
-            quantity: i.quantity,
-          })),
+          items: cart.map(i => ({ variation_id: i.variation_id, quantity: i.quantity })),
           payments,
           discount_cents: calculatedDiscountCents,
           customer_name: customerName || null,
           customer_phone: customerPhone || null,
           idempotency_key: crypto.randomUUID(),
         };
-        // Keep the exact request until the server confirms it, including after a reload.
-        localStorage.setItem(
-          draftKey,
-          JSON.stringify({
-            cart,
-            discountValue,
-            discountType,
-            customerName,
-            customerPhone,
-            pending: pendingRef.current,
-          }),
-        );
+        localStorage.setItem(draftKey, JSON.stringify({
+          cart, discountValue, discountType, customerName, customerPhone,
+          pending: pendingRef.current,
+        }));
         setHasPending(true);
       }
-      const res = await apiRequest<{ sale: { id: string; saleId?: string } }>(
-        "/sales/checkout",
-        { method: "POST", body: JSON.stringify(pendingRef.current) },
-      );
-      const saleId = res.sale.saleId || res.sale.id;
-      pendingRef.current = null;
-      setHasPending(false);
-      setCart([]);
-      setDiscountValue(0);
-      setCustomerName("");
-      setCustomerPhone("");
-      setIsCheckoutOpen(false);
-      localStorage.removeItem(draftKey);
-      try {
-        setCompletedSale(await apiRequest<Sale>(`/sales/${saleId}`));
-      } catch {
-        setErrorMessage(
-          "Venda confirmada. Consulte o Histórico de Vendas para reimprimir o comprovante.",
-        );
+      if (!navigator.onLine) {
+        await savePendingOffline();
+        return;
       }
-      fetchCatalog(searchTerm);
-    } catch (err: any) {
-      // A rejected request (4xx) was not committed. Network/5xx failures remain recoverable.
-      if (err.status === 400) {
+      try {
+        const res = await apiRequest<{ sale: { id: string; saleId?: string } }>(
+          "/sales/checkout",
+          { method: "POST", body: JSON.stringify(pendingRef.current) },
+        );
+        const saleId = res.sale.saleId || res.sale.id;
         pendingRef.current = null;
         setHasPending(false);
+        setCart([]);
+        setDiscountValue(0);
+        setCustomerName("");
+        setCustomerPhone("");
+        setIsCheckoutOpen(false);
+        localStorage.removeItem(draftKey);
+        try {
+          setCompletedSale(await apiRequest<Sale>(`/sales/${saleId}`));
+          setIsProvisionalReceipt(false);
+        } catch {
+          setErrorMessage("Venda confirmada. Reimprima pelo Histórico de Vendas.");
+        }
+        await fetchCatalog();
+      } catch (err: any) {
+        if (err.status === 400) {
+          pendingRef.current = null;
+          setHasPending(false);
+          localStorage.removeItem(draftKey);
+          setErrorMessage(err.message || "Venda recusada pelo servidor.");
+        } else if (!err.status || err.status >= 500) {
+          // Unknown outcome: outbox replay uses the exact same idempotency key.
+          await savePendingOffline();
+        } else {
+          setErrorMessage(err.message || "Confira a venda pendente antes de tentar novamente.");
+        }
       }
-      setErrorMessage(
-        err.message ||
-          "Não foi possível confirmar. Tente novamente com a mesma operação.",
-      );
+    } catch (error) {
+      setErrorMessage((error as Error).message || "Falha ao salvar venda no aparelho. Carrinho preservado.");
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -385,6 +508,18 @@ export const POS: React.FC<POSProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className={`mb-3 p-3 rounded-xl text-sm font-semibold ${isOnline ? "bg-emerald-50 text-emerald-900" : "bg-amber-100 text-amber-950"}`} role="status">
+        {isOnline ? "● Conectado ao Neon" : "● Modo offline — vendas provisórias"}
+        {queuedSales.length > 0 && (
+          <span className="ml-2">
+            {queuedSales.length} venda(s) aguardando conferência/sincronização
+            <button type="button" disabled={!isOnline || syncing} onClick={() => void syncPending()}
+              className="ml-3 underline font-bold disabled:opacity-50">
+              {syncing ? "Sincronizando..." : "Sincronizar agora"}
+            </button>
+          </span>
+        )}
+      </div>
       {hasPending && (
         <div
           role="status"
@@ -913,6 +1048,7 @@ export const POS: React.FC<POSProps> = ({
       {/* Non-Fiscal Receipt Modal upon sale completion */}
       {completedSale && (
         <Receipt
+          provisional={isProvisionalReceipt}
           sale={completedSale}
           settings={settings}
           onClose={() => setCompletedSale(null)}
