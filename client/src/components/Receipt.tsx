@@ -37,29 +37,29 @@ export const Receipt: React.FC<ReceiptProps> = ({
     ).join("");
     const html = `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8">
       <style>
-        /* Physical paper: 58 mm; conservative printable area: 48 mm.
+        /* Physical paper: 58 mm; 40 mm print-safe column for the KP-IM607 driver.
            POS58 heads cannot necessarily print to the paper's right edge. */
         @page { size: 58mm 120mm; margin: 0; }
         html, body { margin: 0; padding: 0; width: 58mm; background: white; }
-        body { color: #000; font: 10px/1.25 Arial, Helvetica, sans-serif; }
-        #ticket { width: 48mm; max-width: 48mm; margin-left: 2mm; padding: 2mm 0 3mm; }
+        body { color: #000; font: 9px/1.25 Arial, Helvetica, sans-serif; }
+        #ticket { width: 40mm; max-width: 40mm; margin-left: 2mm; padding: 2mm 0 3mm; overflow: visible; }
         * { box-sizing: border-box; color: #000 !important; }
-        h1 { margin: 0 0 2px; font-size: 13px; line-height: 1.1; text-align: center; font-weight: 800; }
+        h1 { margin: 0 0 2px; font-size: 12px; line-height: 1.1; text-align: center; font-weight: 800; }
         .center { text-align: center; overflow-wrap: anywhere; }
-        .small { font-size: 9px; }
+        .small { font-size: 8px; }
         .separator { margin: 4px 0; border-top: 1px dashed #222; }
-        .row { display: flex; width: 100%; justify-content: space-between; align-items: baseline; gap: 3px; margin: 2px 0; }
+        .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%; align-items: baseline; column-gap: 2mm; margin: 2px 0; }
         .row span { min-width: 0; overflow-wrap: anywhere; }
-        .row span:first-child { flex: 1 1 auto; }
-        .row span:last-child { flex: 0 1 auto; max-width: 72%; text-align: right; }
+        .row span:first-child { min-width: 0; overflow-wrap: anywhere; }
+        .row span:last-child { max-width: 26mm; text-align: right; overflow-wrap: anywhere; }
         .item .row span:last-child, .prominent span:last-child { white-space: nowrap; }
-        .prominent { font-size: 12px; font-weight: 800; margin: 5px 0; }
+        .prominent { font-size: 11px; font-weight: 800; margin: 5px 0; }
         .item { margin: 4px 0; break-inside: avoid; }
         .item-name { font-weight: 700; overflow-wrap: anywhere; }
         .footer { margin-top: 6px; text-align: center; overflow-wrap: anywhere; }
         @media print {
           html, body { width: 58mm !important; margin: 0 !important; padding: 0 !important; }
-          #ticket { width: 48mm !important; max-width: 48mm !important; margin-left: 2mm !important; }
+          #ticket { width: 40mm !important; max-width: 40mm !important; margin-left: 2mm !important; }
         }
       </style></head><body><main id="ticket">
         <h1>${sanitize(settings?.store_name || "LORY BOUTIQUE")}</h1>
