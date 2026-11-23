@@ -46,81 +46,18 @@
   }
 }
 
-/* Thermal receipt paper: Knup KP-IM607 / Windows POS58 Printer.
-   Page length is supplied by Receipt.tsx at print time; keep a safe fallback.
-   No content from the storefront or modal should affect printed paper length. */
-@page { size: 58mm 90mm; margin: 0; }
+/* The receipt is printed from its own isolated document (Receipt.tsx).
+   Do not force the application body to zero height when printing: that
+   caused blank or offset pages in browser/driver fallback paths. */
 @media print {
+  @page { margin: 0; }
   html, body, #root {
-    width: 58mm !important;
-    height: 0 !important;
-    min-height: 0 !important;
-    min-width: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: visible !important;
-    background: white !important;
-  }
-  body * { visibility: hidden !important; }
-  #printable-receipt, #printable-receipt * { visibility: visible !important; }
-  #printable-receipt {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    box-sizing: border-box !important;
-    width: 58mm !important;
-    min-width: 58mm !important;
-    max-width: 58mm !important;
     height: auto !important;
-    padding: 2mm 3mm 3mm !important;
-    margin: 0 !important;
-    color: #000 !important;
+    min-height: 0 !important;
     background: #fff !important;
-    font-family: Arial, sans-serif !important;
-    font-size: 11px !important;
-    font-weight: 500 !important;
-    line-height: 1.28 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    box-shadow: none !important;
-    border: 0 !important;
-    overflow-wrap: anywhere !important;
   }
-  #printable-receipt * {
-    color: #000 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-  }
-  #printable-receipt .flex { flex-wrap: wrap; }
-  #printable-receipt .text-right { text-align: right; }
-  #printable-receipt .py-2\\.5 { padding-top: 1mm !important; padding-bottom: 1mm !important; }
-  #printable-receipt .pb-3 { padding-bottom: 1mm !important; }
-  #printable-receipt .pt-3 { padding-top: 1mm !important; }
-  #printable-receipt .space-y-2 > :not(:first-child) { margin-top: 1mm !important; }
-  #printable-receipt .space-y-1 > :not(:first-child) { margin-top: 0.5mm !important; }
-  #printable-receipt h1 { font-size: 13px !important; line-height: 1.1 !important; }
-  #printable-receipt .font-serif { font-family: Arial, sans-serif !important; }
-  /* Stronger text for low-resolution thermal heads without large black graphics. */
-  #printable-receipt h1 {
-    font-size: 15px !important;
-    font-weight: 800 !important;
-    letter-spacing: 0 !important;
-  }
-  #printable-receipt .text-\\[9px\\],
-  #printable-receipt .text-\\[10px\\] { font-size: 10px !important; }
-  #printable-receipt .text-\\[11px\\],
-  #printable-receipt .text-xs { font-size: 11px !important; }
-  #printable-receipt .text-sm { font-size: 13px !important; }
-  #printable-receipt .font-bold,
-  #printable-receipt .font-semibold { font-weight: 800 !important; }
-  #printable-receipt .line-clamp-1 {
-    display: block !important;
-    overflow: visible !important;
-    -webkit-line-clamp: unset !important;
-    line-clamp: unset !important;
-    white-space: normal !important;
-  }
-  #printable-receipt .border-dashed { border-color: #222 !important; }
 }
 /* Comfortable controls for daily counter operation. */
 @layer base {
