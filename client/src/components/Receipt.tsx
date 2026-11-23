@@ -18,46 +18,106 @@ export const Receipt: React.FC<ReceiptProps> = ({
   provisional = false,
 }) => {
   const handlePrint = () => {
-    const receipt = document.getElementById("printable-receipt");
-    if (!receipt) return;
+    // Print in an isolated document. Printing the entire SPA used to leave
+    // hidden page regions in the printable flow (blank paper on POS58).
+    const sanitize = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] || char
+    ));
+    const money = (value: number) => sanitize(formatBRL(value));
+    const row = (label: string, value: string, prominent = false) =>
+      `<div class="row${prominent ? " prominent" : ""}"><span>${sanitize(label)}</span><span>${value}</span></div>`;
+    const itemsHtml = (sale.items || []).map((item) =>
+      `<div class="item"><div class="item-name">${sanitize(item.product_name)}</div>${row(
+        `${item.quantity} x ${formatBRL(item.unit_price_cents)}`,
+        money(item.total_cents)
+      )}</div>`
+    ).join("");
+    const paymentsHtml = (sale.payments || []).map((payment) =>
+      row(getPaymentName(payment.payment_method), money(payment.amount_cents))
+    ).join("");
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8">
+      <style>
+        @page { size: 58mm 120mm; margin: 0; }
+        html, body { margin: 0; padding: 0; background: white; width: 58mm; }
+        body { color: #000; font: 11px/1.25 Arial, Helvetica, sans-serif; }
+        #ticket { box-sizing: border-box; width: 58mm; padding: 2mm 3mm 3mm; }
+        * { box-sizing: border-box; color: #000 !important; }
+        h1 { margin: 0 0 2px; font-size: 15px; line-height: 1.1; text-align: center; font-weight: 800; }
+        .center { text-align: center; }
+        .small { font-size: 10px; }
+        .separator { margin: 5px 0; border-top: 1px dashed #222; }
+        .row { display: flex; justify-content: space-between; align-items: baseline; gap: 5px; margin: 2px 0; }
+        .row span { overflow-wrap: anywhere; }
+        .row span:last-child { text-align: right; flex-shrink: 0; }
+        .prominent { font-size: 14px; font-weight: 800; margin: 5px 0; }
+        .item { margin: 4px 0; break-inside: avoid; }
+        .item-name { font-weight: 700; overflow-wrap: anywhere; }
+        .footer { margin-top: 7px; text-align: center; }
+        @media print {
+          html, body { width: 58mm !important; margin: 0 !important; padding: 0 !important; }
+          #ticket { width: 58mm !important; }
+        }
+      </style></head><body><main id="ticket">
+        <h1>${sanitize(settings?.store_name || "LORY BOUTIQUE")}</h1>
+        <div class="center small">Moda e Acessórios</div>
+        <div class="center small">${sanitize(settings?.address || "Rua Hipólito de Camargo, 45 — Guaianases, São Paulo/SP")}</div>
+        <div class="center small">WhatsApp: ${sanitize(settings?.whatsapp || "(11) 94961-1902")}</div>
+        ${settings?.cnpj ? `<div class="center small">CNPJ: ${sanitize(settings.cnpj)}</div>` : ""}
+        <div class="separator"></div>
+        <div class="center"><strong>${provisional ? "VENDA LOCAL PENDENTE — NÃO CONFIRMADA" : "COMPROVANTE NÃO FISCAL"}</strong></div>
+        <div class="separator"></div>
+        ${row("Venda", sanitize(sale.code))}
+        ${row("Data", sanitize(formatDateBR(sale.created_at)))}
+        ${row("Atendente", sanitize(sale.seller_name || "Equipe Lory"))}
+        ${sale.customer_name ? row("Cliente", sanitize(sale.customer_name)) : ""}
+        ${sale.customer_phone ? row("Contato", sanitize(sale.customer_phone)) : ""}
+        <div class="separator"></div>
+        ${itemsHtml}
+        <div class="separator"></div>
+        ${row("Subtotal", money(sale.subtotal_cents))}
+        ${sale.discount_cents > 0 ? row("Desconto", "- " + money(sale.discount_cents)) : ""}
+        ${sale.exchange_credit_cents ? row("Crédito da troca", money(sale.exchange_credit_cents)) : ""}
+        ${row("TOTAL", money(sale.total_cents), true)}
+        <div class="separator"></div>
+        ${paymentsHtml}
+        ${sale.change_cents > 0 ? row("Troco", money(sale.change_cents)) : ""}
+        <div class="footer">Obrigada por escolher a Lory Boutique!<div class="small">Guarde este comprovante para eventuais trocas.</div><div class="small">@loryboutiquel</div></div>
+      </main></body></html>`;
 
-    // Chromium defaults to the driver's full page length with `size: auto`,
-    // leaving long blank tails on continuous 58 mm thermal paper.
-    // Measure a copy at the physical paper width and request that exact length.
-    // This is a browser/driver hint; the POS58 driver must also use 58 mm paper.
-    const probe = receipt.cloneNode(true) as HTMLElement;
-    probe.removeAttribute("id");
-    probe.setAttribute("aria-hidden", "true");
-    probe.style.cssText = [
-      "position:fixed", "left:-10000px", "top:0", "visibility:hidden",
-      "display:block", "width:58mm", "min-width:58mm", "max-width:58mm",
-      "box-sizing:border-box", "height:auto", "padding:2mm 3mm 3mm",
-      "margin:0", "background:#fff", "color:#000",
-      "font-family:Arial,sans-serif", "font-size:10px", "line-height:1.2",
-      "overflow-wrap:anywhere",
-    ].join(";");
-    document.body.appendChild(probe);
-    const measuredPx = probe.getBoundingClientRect().height;
-    probe.remove();
-
-    // Add a little feed clearance so the final line does not get clipped.
-    // No artificial full-page A4/Letter-sized printable area.
-    const heightMm = Math.max(55, Math.min(600, Math.ceil(measuredPx * 25.4 / 96 + 9)));
-    const pageStyle = document.createElement("style");
-    pageStyle.setAttribute("data-lory-receipt-page", "");
-    pageStyle.textContent = `@page { size: 58mm ${heightMm}mm; margin: 0; }`;
-    document.head.appendChild(pageStyle);
-
+    const frame = document.createElement("iframe");
+    frame.title = "Impressão de cupom Lory Boutique";
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;left:-10000px;top:0;width:58mm;height:200mm;border:0;opacity:0;pointer-events:none;";
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument;
+    if (!doc || !frame.contentWindow) {
+      frame.remove();
+      window.alert("Não foi possível abrir a impressão do cupom.");
+      return;
+    }
+    doc.open();
+    doc.write(html);
+    doc.close();
+    const win = frame.contentWindow;
+    const ticket = doc.getElementById("ticket");
+    if (!ticket) { frame.remove(); return; }
+    // Estimate paper length from the isolated content. Driver paper settings
+    // must still be set to continuous 58 mm; browser CSS cannot override all drivers.
+    const height = Math.max(50, Math.min(550, Math.ceil(ticket.getBoundingClientRect().height * 25.4 / 96 + 5)));
+    const dynamicPage = doc.createElement("style");
+    dynamicPage.textContent = `@page { size: 58mm ${height}mm; margin: 0; }`;
+    doc.head.appendChild(dynamicPage);
     const cleanup = () => {
-      pageStyle.remove();
-      window.removeEventListener("afterprint", cleanup);
+      win.removeEventListener("afterprint", cleanup);
+      frame.remove();
     };
-    window.addEventListener("afterprint", cleanup, { once: true });
+    win.addEventListener("afterprint", cleanup, { once: true });
     try {
-      window.print();
-    } catch (error) {
+      win.focus();
+      win.print();
+    } catch {
       cleanup();
-      throw error;
+      window.alert("Não foi possível imprimir. Verifique a POS58 Printer no Windows.");
     }
   };
 
