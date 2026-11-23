@@ -77,8 +77,11 @@
     color: #000 !important;
     background: #fff !important;
     font-family: Arial, sans-serif !important;
-    font-size: 10px !important;
-    line-height: 1.2 !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    line-height: 1.28 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
     box-shadow: none !important;
     border: 0 !important;
     overflow-wrap: anywhere !important;
@@ -97,6 +100,27 @@
   #printable-receipt .space-y-1 > :not(:first-child) { margin-top: 0.5mm !important; }
   #printable-receipt h1 { font-size: 13px !important; line-height: 1.1 !important; }
   #printable-receipt .font-serif { font-family: Arial, sans-serif !important; }
+  /* Stronger text for low-resolution thermal heads without large black graphics. */
+  #printable-receipt h1 {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0 !important;
+  }
+  #printable-receipt .text-\\[9px\\],
+  #printable-receipt .text-\\[10px\\] { font-size: 10px !important; }
+  #printable-receipt .text-\\[11px\\],
+  #printable-receipt .text-xs { font-size: 11px !important; }
+  #printable-receipt .text-sm { font-size: 13px !important; }
+  #printable-receipt .font-bold,
+  #printable-receipt .font-semibold { font-weight: 800 !important; }
+  #printable-receipt .line-clamp-1 {
+    display: block !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+    line-clamp: unset !important;
+    white-space: normal !important;
+  }
+  #printable-receipt .border-dashed { border-color: #222 !important; }
 }
 /* Comfortable controls for daily counter operation. */
 @layer base {
