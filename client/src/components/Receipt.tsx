@@ -18,7 +18,47 @@ export const Receipt: React.FC<ReceiptProps> = ({
   provisional = false,
 }) => {
   const handlePrint = () => {
-    window.print();
+    const receipt = document.getElementById("printable-receipt");
+    if (!receipt) return;
+
+    // Chromium defaults to the driver's full page length with `size: auto`,
+    // leaving long blank tails on continuous 58 mm thermal paper.
+    // Measure a copy at the physical paper width and request that exact length.
+    // This is a browser/driver hint; the POS58 driver must also use 58 mm paper.
+    const probe = receipt.cloneNode(true) as HTMLElement;
+    probe.removeAttribute("id");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = [
+      "position:fixed", "left:-10000px", "top:0", "visibility:hidden",
+      "display:block", "width:58mm", "min-width:58mm", "max-width:58mm",
+      "box-sizing:border-box", "height:auto", "padding:2mm 3mm 3mm",
+      "margin:0", "background:#fff", "color:#000",
+      "font-family:Arial,sans-serif", "font-size:10px", "line-height:1.2",
+      "overflow-wrap:anywhere",
+    ].join(";");
+    document.body.appendChild(probe);
+    const measuredPx = probe.getBoundingClientRect().height;
+    probe.remove();
+
+    // Add a little feed clearance so the final line does not get clipped.
+    // No artificial full-page A4/Letter-sized printable area.
+    const heightMm = Math.max(55, Math.min(600, Math.ceil(measuredPx * 25.4 / 96 + 9)));
+    const pageStyle = document.createElement("style");
+    pageStyle.setAttribute("data-lory-receipt-page", "");
+    pageStyle.textContent = `@page { size: 58mm ${heightMm}mm; margin: 0; }`;
+    document.head.appendChild(pageStyle);
+
+    const cleanup = () => {
+      pageStyle.remove();
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup, { once: true });
+    try {
+      window.print();
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
   };
 
   // Mobile Bluetooth thermal printers usually need an Android print service or
